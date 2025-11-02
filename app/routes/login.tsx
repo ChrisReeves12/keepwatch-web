@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 import { useState } from "react";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "Login - KeepWatch" },
     { name: "description", content: "Sign in to your KeepWatch account" },
@@ -17,7 +17,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#001542] via-[#002865] to-[#085454] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-primary-dark via-[#002865] to-brand p-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand Section */}
         <div className="text-center mb-8">
@@ -30,10 +30,10 @@ export default function Login() {
         </div>
 
         {/* Login Card */}
-        <Card className="shadow-xl border-[#085454]/20 bg-white">
+        <Card className="shadow-xl border-brand/20 bg-white">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-[#001542]">Welcome back</CardTitle>
-            <CardDescription className="text-[#7A7A7A]">
+            <CardTitle className="text-2xl font-bold text-brand">Welcome back</CardTitle>
+            <CardDescription className="text-neutral">
               Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
@@ -68,10 +68,10 @@ export default function Login() {
             {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-[#7A7A7A]/30" />
+                <span className="w-full border-t border-neutral/30" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-[#7A7A7A]">
+                <span className="bg-white px-2 text-neutral">
                   Or continue with
                 </span>
               </div>
@@ -79,31 +79,31 @@ export default function Login() {
 
             {/* Email Input */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-[#001542]">Email</Label>
+              <Label htmlFor="email" className="text-primary-dark">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="name@example.com"
                 required
-                className="border-[#7A7A7A]/30 focus-visible:ring-[#085454]"
+                className="border-neutral/30 focus-visible:ring-brand"
               />
             </div>
 
             {/* Password Input */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-[#001542]">Password</Label>
+              <Label htmlFor="password" className="text-primary-dark">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   required
-                  className="pr-10 border-[#7A7A7A]/30 focus-visible:ring-[#085454]"
+                  className="pr-10 border-neutral/30 focus-visible:ring-brand"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A7A7A] hover:text-[#085454] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-brand transition-colors"
                 >
                   {showPassword ? (
                     <AiOutlineEyeInvisible className="h-4 w-4" />
@@ -118,23 +118,23 @@ export default function Login() {
             <div className="flex justify-end">
               <a
                 href="#"
-                className="text-sm text-[#085454] hover:text-[#FFB30D] underline-offset-4 hover:underline transition-colors"
+                className="text-sm text-brand hover:text-accent underline-offset-4 hover:underline transition-colors"
               >
                 Forgot password?
               </a>
             </div>
 
             {/* Sign In Button */}
-            <Button className="w-full bg-[#085454] hover:bg-[#085454]/90 text-white" size="lg">
+            <Button className="w-full bg-brand hover:bg-brand/90 text-white" size="lg">
               Sign In
             </Button>
           </CardContent>
           <CardFooter className="flex justify-center">
-            <p className="text-sm text-[#7A7A7A]">
+            <p className="text-sm text-neutral">
               Don't have an account?{" "}
               <a
                 href="#"
-                className="font-medium text-[#085454] hover:text-[#FFB30D] underline-offset-4 hover:underline transition-colors"
+                className="font-medium text-brand hover:text-accent underline-offset-4 hover:underline transition-colors"
               >
                 Sign up
               </a>
@@ -145,11 +145,11 @@ export default function Login() {
         {/* Footer */}
         <p className="text-center text-xs text-white/70 mt-8">
           By signing in, you agree to our{" "}
-          <a href="#" className="text-white/90 underline-offset-4 hover:underline hover:text-[#FFB30D] transition-colors">
+          <a href="#" className="text-white/90 underline-offset-4 hover:underline hover:text-accent transition-colors">
             Terms of Service
           </a>{" "}
           and{" "}
-          <a href="#" className="text-white/90 underline-offset-4 hover:underline hover:text-[#FFB30D] transition-colors">
+          <a href="#" className="text-white/90 underline-offset-4 hover:underline hover:text-accent transition-colors">
             Privacy Policy
           </a>
         </p>
