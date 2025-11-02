@@ -1,18 +1,36 @@
-# Welcome to React Router!
+# KeepWatch
 
-A modern, production-ready template for building full-stack React applications using React Router.
+A modern SaaS telemetry platform for monitoring your application systems, uptime, and logs. KeepWatch provides real-time insights into your infrastructure health, helping you stay ahead of issues before they impact your users.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## About
 
-## Features
+KeepWatch is designed to give you comprehensive visibility into your applications and systems. Whether you're running microservices, monoliths, or serverless architectures, KeepWatch helps you:
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- **Monitor System Uptime** - Track availability and performance metrics across all your services
+- **Application Telemetry** - Gain deep insights into your application behavior and performance
+- **Log Management** - Receive, aggregate, and analyze application and system logs in real-time
+- **Instant Alerts** - Get notified immediately when things go wrong
+
+## Tech Stack
+
+Built with modern web technologies:
+
+- ⚡️ React Router with server-side rendering
+- 🔒 TypeScript for type safety
+- 🎨 TailwindCSS for styling
+- 🚀 Vite for fast builds and HMR
+
+## Design System
+
+### Color Palette
+
+Our brand colors create a professional and modern aesthetic:
+
+- **Primary Dark** - `#001542` - Deep navy blue for headers and important elements
+- **Brand Color** - `#085454` - Teal/cyan for primary actions and brand identity
+- **Neutral** - `#7A7A7A` - Gray for secondary text and subtle elements
+- **Base** - `#FFFFFF` - White for backgrounds and contrast
+- **Accent** - `#FFB30D` - Vibrant orange for highlights and calls-to-action
 
 ## Getting Started
 
