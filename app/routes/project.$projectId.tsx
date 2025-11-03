@@ -9,7 +9,9 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from "~/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "~/components/ui/pagination";
-import { ArrowLeft, Copy, Users, Key, Settings, Activity, CheckCircle, AlertCircle, Trash2, Pencil, FileText, Info, Bug, AlertTriangle, XCircle, AlertOctagon, ChevronDown, ChevronRight } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ArrowLeft, Copy, Users, Key, Settings, Activity, CheckCircle, AlertCircle, Trash2, Pencil, FileText, Info, Bug, AlertTriangle, XCircle, AlertOctagon, ChevronDown, ChevronRight, Filter } from "lucide-react";
 import moment from "moment";
 import { useState, useEffect } from "react";
 import { redirect } from "react-router";
@@ -1384,10 +1386,10 @@ function ApplicationLogsTab({ project }: { project: Project }) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Get filters from URL params
+    // Get filters from URL params (support arrays)
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
-    const levelFilter = searchParams.get("level") || "";
-    const environmentFilter = searchParams.get("environment") || "";
+    const levelFilters = searchParams.getAll("level");
+    const environmentFilters = searchParams.getAll("environment");
 
     // Fetch logs (client-side with Bearer token)
     useEffect(() => {
@@ -1402,14 +1404,14 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                     pageSize: 50,
                 };
 
-                // Add level filter if selected
-                if (levelFilter && levelFilter !== "all") {
-                    filters.level = levelFilter;
+                // Add level filters if selected (send as array if multiple, string if single)
+                if (levelFilters.length > 0) {
+                    filters.level = levelFilters.length === 1 ? levelFilters[0] : levelFilters;
                 }
 
-                // Add environment filter if provided
-                if (environmentFilter) {
-                    filters.environment = environmentFilter;
+                // Add environment filters if provided (send as array if multiple, string if single)
+                if (environmentFilters.length > 0) {
+                    filters.environment = environmentFilters.length === 1 ? environmentFilters[0] : environmentFilters;
                 }
 
                 // Pass token for Authorization header
@@ -1427,27 +1429,49 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilter, environmentFilter, token]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), token]);
 
-    // Handle filter changes
-    const handleLevelChange = (level: string) => {
+    // Handle filter changes for multi-select
+    const toggleLevelFilter = (level: string) => {
         const newParams = new URLSearchParams(searchParams);
-        if (level === "all") {
-            newParams.delete("level");
+        newParams.delete("level"); // Clear all level params
+
+        const currentLevels = levelFilters;
+        let newLevels: string[];
+
+        if (currentLevels.includes(level)) {
+            // Remove the level
+            newLevels = currentLevels.filter(l => l !== level);
         } else {
-            newParams.set("level", level);
+            // Add the level
+            newLevels = [...currentLevels, level];
         }
+
+        // Add back all selected levels
+        newLevels.forEach(l => newParams.append("level", l));
+
         newParams.set("page", "1"); // Reset to page 1 when filter changes
         setSearchParams(newParams);
     };
 
-    const handleEnvironmentChange = (environment: string) => {
+    const toggleEnvironmentFilter = (environment: string) => {
         const newParams = new URLSearchParams(searchParams);
-        if (environment) {
-            newParams.set("environment", environment);
+        newParams.delete("environment"); // Clear all environment params
+
+        const currentEnvironments = environmentFilters;
+        let newEnvironments: string[];
+
+        if (currentEnvironments.includes(environment)) {
+            // Remove the environment
+            newEnvironments = currentEnvironments.filter(e => e !== environment);
         } else {
-            newParams.delete("environment");
+            // Add the environment
+            newEnvironments = [...currentEnvironments, environment];
         }
+
+        // Add back all selected environments
+        newEnvironments.forEach(e => newParams.append("environment", e));
+
         newParams.set("page", "1"); // Reset to page 1 when filter changes
         setSearchParams(newParams);
     };
@@ -1485,43 +1509,140 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                 </div>
 
                 {/* Filters */}
-                <div className="mt-6 flex flex-wrap items-end gap-4">
+                <div className="mt-6 flex flex-wrap items-start gap-4">
+                    {/* Environment Multi-Select */}
                     <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
-                        <Label htmlFor="environment-filter">Environment</Label>
-                        <Input
-                            id="environment-filter"
-                            type="text"
-                            placeholder="Filter by environment..."
-                            value={environmentFilter}
-                            onChange={(e) => handleEnvironmentChange(e.target.value)}
-                            className="mt-1.5"
-                        />
+                        <Label className="mb-2 block">Environment</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-between">
+                                    <span className="truncate">
+                                        {environmentFilters.length === 0
+                                            ? "All Environments"
+                                            : `${environmentFilters.length} selected`}
+                                    </span>
+                                    <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[200px] p-3">
+                                <div className="space-y-2">
+                                    <Input
+                                        placeholder="Add environment..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && e.currentTarget.value) {
+                                                toggleEnvironmentFilter(e.currentTarget.value);
+                                                e.currentTarget.value = '';
+                                            }
+                                        }}
+                                        className="mb-2"
+                                    />
+                                    {environmentFilters.length > 0 && (
+                                        <>
+                                            <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
+                                            {environmentFilters.map((env) => (
+                                                <div key={env} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`env-${env}`}
+                                                        checked={true}
+                                                        onCheckedChange={() => toggleEnvironmentFilter(env)}
+                                                    />
+                                                    <label
+                                                        htmlFor={`env-${env}`}
+                                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                                    >
+                                                        {env}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        {environmentFilters.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {environmentFilters.map((env) => (
+                                    <span
+                                        key={env}
+                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
+                                    >
+                                        {env}
+                                        <button
+                                            onClick={() => toggleEnvironmentFilter(env)}
+                                            className="hover:text-brand/70"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
+                    {/* Log Level Multi-Select */}
                     <div className="w-[200px]">
-                        <Label htmlFor="level-filter">Log Level</Label>
-                        <select
-                            id="level-filter"
-                            value={levelFilter || "all"}
-                            onChange={(e) => handleLevelChange(e.target.value)}
-                            className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
-                        >
-                            <option value="all">All Levels</option>
-                            <option value="INFO">INFO</option>
-                            <option value="DEBUG">DEBUG</option>
-                            <option value="WARNING">WARNING</option>
-                            <option value="ERROR">ERROR</option>
-                            <option value="CRITICAL">CRITICAL</option>
-                        </select>
+                        <Label className="mb-2 block">Log Level</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-between">
+                                    <span className="truncate">
+                                        {levelFilters.length === 0
+                                            ? "All Levels"
+                                            : `${levelFilters.length} selected`}
+                                    </span>
+                                    <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[200px] p-3">
+                                <div className="space-y-2">
+                                    {['INFO', 'DEBUG', 'WARNING', 'ERROR', 'CRITICAL'].map((level) => (
+                                        <div key={level} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`level-${level}`}
+                                                checked={levelFilters.includes(level)}
+                                                onCheckedChange={() => toggleLevelFilter(level)}
+                                            />
+                                            <label
+                                                htmlFor={`level-${level}`}
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                            >
+                                                {level}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        {levelFilters.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {levelFilters.map((level) => {
+                                    const style = getLogLevelStyle(level);
+                                    return (
+                                        <span
+                                            key={level}
+                                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${style.bgColor} ${style.color}`}
+                                        >
+                                            {level}
+                                            <button
+                                                onClick={() => toggleLevelFilter(level)}
+                                                className="hover:opacity-70"
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
-                    {(levelFilter || environmentFilter) && (
+                    {(levelFilters.length > 0 || environmentFilters.length > 0) && (
                         <Button
                             variant="outline"
                             onClick={clearFilters}
-                            className="mb-0.5"
+                            className="mt-6"
                         >
-                            Clear Filters
+                            Clear All Filters
                         </Button>
                     )}
                 </div>
