@@ -18,6 +18,29 @@ export interface AuthError {
     error: string;
 }
 
+export interface Project {
+    _id: string;
+    name: string;
+    description: string;
+    projectId: string;
+    users: Array<{
+        id: string;
+        role: string;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+    apiKeys: Array<{
+        id: string;
+        key: string;
+        createdAt: string;
+        constraints: Record<string, any>;
+    }>;
+}
+
+export interface ProjectsResponse {
+    projects: Project[];
+}
+
 /**
  * Authenticate user with email and password
  */
@@ -64,5 +87,50 @@ export async function authenticatedFetch(
         // Ensure cookies are included in client-side requests
         credentials: 'include',
     });
+}
+
+/**
+ * Fetch all projects for the authenticated user
+ */
+export async function fetchProjects(token: string): Promise<ProjectsResponse> {
+    const response = await authenticatedFetch('/v1/projects', {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch projects');
+    }
+
+    return response.json();
+}
+
+export interface CreateProjectRequest {
+    name: string;
+    description: string;
+}
+
+export interface CreateProjectResponse {
+    message: string;
+    project: Project;
+}
+
+/**
+ * Create a new project
+ */
+export async function createProject(token: string, data: CreateProjectRequest): Promise<CreateProjectResponse> {
+    const response = await authenticatedFetch('/v1/projects', {
+        method: 'POST',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create project');
+    }
+
+    return response.json();
 }
 
