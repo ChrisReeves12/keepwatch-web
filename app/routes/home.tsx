@@ -379,9 +379,11 @@ function ProjectCard({ project }: { project: Project }) {
 
         {/* Actions */}
         <div className="pt-2">
-          <Button className="w-full bg-brand hover:bg-brand/90 text-white">
-            View Details
-          </Button>
+          <Link to={`/project/${project.projectId}`} className="block">
+            <Button className="w-full bg-brand hover:bg-brand/90 text-white">
+              View Details
+            </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

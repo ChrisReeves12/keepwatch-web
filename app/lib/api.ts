@@ -3,19 +3,21 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 export interface AuthResponse {
     message: string;
     token: string;
-    user: {
-        name: string;
-        email: string;
-        userId: string;
-        createdAt: string;
-        company: string;
-        updatedAt: string;
-        _id: string;
-    };
+    user: User;
 }
 
 export interface AuthError {
     error: string;
+}
+
+export interface User {
+    name: string;
+    email: string;
+    userId: string;
+    createdAt: string;
+    company: string;
+    updatedAt: string;
+    _id: string;
 }
 
 export interface Project {
@@ -26,6 +28,8 @@ export interface Project {
     users: Array<{
         id: string;
         role: string;
+        name?: string;
+        email?: string;
     }>;
     createdAt: string;
     updatedAt: string;
@@ -106,6 +110,28 @@ export async function fetchProjects(token: string): Promise<ProjectsResponse> {
     return response.json();
 }
 
+export interface GetProjectResponse {
+    project: Project;
+}
+
+/**
+ * Fetch a single project by projectId
+ */
+export async function fetchProject(token: string, projectId: string): Promise<Project> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch project');
+    }
+
+    const data: GetProjectResponse = await response.json();
+    return data.project;
+}
+
 export interface CreateProjectRequest {
     name: string;
     description: string;
@@ -132,5 +158,131 @@ export async function createProject(token: string, data: CreateProjectRequest): 
     }
 
     return response.json();
+}
+
+export interface APIKey {
+    id: string;
+    key: string;
+    createdAt: string;
+    constraints: Record<string, any>;
+}
+
+export interface CreateAPIKeyResponse {
+    message: string;
+    apiKey: APIKey;
+}
+
+/**
+ * Create a new API key for a project
+ */
+export async function createAPIKey(token: string, projectId: string): Promise<CreateAPIKeyResponse> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/api-keys`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create API key');
+    }
+
+    return response.json();
+}
+
+/**
+ * Delete/revoke an API key
+ */
+export async function deleteAPIKey(token: string, projectId: string, apiKeyId: string): Promise<void> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/api-keys/${apiKeyId}`, {
+        method: 'DELETE',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete API key');
+    }
+}
+
+/**
+ * Delete a project
+ */
+export async function deleteProject(token: string, projectId: string): Promise<void> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}`, {
+        method: 'DELETE',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete project');
+    }
+}
+
+export interface GetCurrentUserResponse {
+    user: User;
+}
+
+/**
+ * Get current user info
+ */
+export async function getCurrentUser(token: string): Promise<User> {
+    const response = await authenticatedFetch('/v1/users/me', {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get current user');
+    }
+
+    const data: GetCurrentUserResponse = await response.json();
+    return data.user;
+}
+
+/**
+ * Remove a user from a project
+ */
+export async function removeUserFromProject(token: string, projectId: string, userId: string): Promise<void> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/users/${userId}`, {
+        method: 'DELETE',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove user from project');
+    }
+}
+
+export interface UpdateProjectRequest {
+    name?: string;
+    description?: string;
+}
+
+export interface UpdateProjectResponse {
+    message: string;
+    project: Project;
+}
+
+/**
+ * Update a project's details
+ */
+export async function updateProject(token: string, projectId: string, data: UpdateProjectRequest): Promise<Project> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}`, {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update project');
+    }
+
+    const result: UpdateProjectResponse = await response.json();
+    return result.project;
 }
 

@@ -7,7 +7,7 @@ import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 import { useState } from "react";
 import { Form, redirect, useActionData } from "react-router";
 import { authenticate } from "~/lib/api";
-import { setAuthCookie, getAuthToken } from "~/lib/auth.server";
+import { setAuthCookies, getAuthToken } from "~/lib/auth.server";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -33,11 +33,13 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     const response = await authenticate(email, password);
 
-    // Set the auth cookie and redirect
+    // Set the auth cookies and redirect (use userId, not _id)
+    const cookies = await setAuthCookies(response.token, response.user.userId);
     return redirect("/", {
-      headers: {
-        "Set-Cookie": await setAuthCookie(response.token),
-      },
+      headers: [
+        ["Set-Cookie", cookies[0]],
+        ["Set-Cookie", cookies[1]],
+      ],
     });
   } catch (error) {
     return {
