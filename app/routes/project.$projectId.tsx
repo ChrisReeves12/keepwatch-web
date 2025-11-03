@@ -1,13 +1,14 @@
 import type { Route } from "./+types/project.$projectId";
 import { getAuthToken } from "~/lib/auth.server";
 import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, searchLogs, type Project, type Log, type SearchLogsRequest, type SearchLogsResponse } from "~/lib/api";
-import { useLoaderData, Link, Form, useActionData, useNavigate, useFetcher } from "react-router";
+import { useLoaderData, Link, Form, useActionData, useNavigate, useSearchParams } from "react-router";
 import { DashboardHeader } from "~/components/DashboardHeader";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from "~/components/ui/dialog";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "~/components/ui/pagination";
 import { ArrowLeft, Copy, Users, Key, Settings, Activity, CheckCircle, AlertCircle, Trash2, Pencil, FileText, Info, Bug, AlertTriangle, XCircle, AlertOctagon, ChevronDown, ChevronRight } from "lucide-react";
 import moment from "moment";
 import { useState, useEffect } from "react";
@@ -146,7 +147,11 @@ export default function ProjectDetail() {
     const { project, userId, userRole } = useLoaderData<typeof loader>();
     const actionData = useActionData<typeof action>();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<"overview" | "apikeys" | "team" | "logs" | "settings">("overview");
+    const [searchParams] = useSearchParams();
+
+    // Get active tab from URL, default to "overview"
+    const activeTab = (searchParams.get("tab") as "overview" | "apikeys" | "team" | "logs" | "settings") || "overview";
+
     const [showCreateAPIKeyDialog, setShowCreateAPIKeyDialog] = useState(false);
     const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
     const [newAPIKey, setNewAPIKey] = useState<string | null>(null);
@@ -227,51 +232,51 @@ export default function ProjectDetail() {
                 {/* Tabs */}
                 <div className="border-b border-gray-200 mb-6">
                     <nav className="flex gap-8">
-                        <button
-                            onClick={() => setActiveTab("overview")}
+                        <Link
+                            to="?tab=overview"
                             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "overview"
                                 ? "border-brand text-brand"
                                 : "border-transparent text-neutral hover:text-primary-dark"
                                 }`}
                         >
                             Overview
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("apikeys")}
+                        </Link>
+                        <Link
+                            to="?tab=apikeys"
                             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "apikeys"
                                 ? "border-brand text-brand"
                                 : "border-transparent text-neutral hover:text-primary-dark"
                                 }`}
                         >
                             API Keys
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("team")}
+                        </Link>
+                        <Link
+                            to="?tab=team"
                             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "team"
                                 ? "border-brand text-brand"
                                 : "border-transparent text-neutral hover:text-primary-dark"
                                 }`}
                         >
                             Team
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("logs")}
+                        </Link>
+                        <Link
+                            to="?tab=logs"
                             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "logs"
                                 ? "border-brand text-brand"
                                 : "border-transparent text-neutral hover:text-primary-dark"
                                 }`}
                         >
                             Logs
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("settings")}
+                        </Link>
+                        <Link
+                            to="?tab=settings"
                             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "settings"
                                 ? "border-brand text-brand"
                                 : "border-transparent text-neutral hover:text-primary-dark"
                                 }`}
                         >
                             Settings
-                        </button>
+                        </Link>
                     </nav>
                 </div>
 
@@ -1251,46 +1256,86 @@ function getLogLevelStyle(level: string): { icon: any; color: string; bgColor: s
     }
 }
 
+// Helper function to generate pagination page numbers with ellipsis
+function getPageNumbers(currentPage: number, totalPages: number): (number | "ellipsis")[] {
+    const pages: (number | "ellipsis")[] = [];
+    const maxVisible = 5; // Maximum number of page buttons to show
+
+    if (totalPages <= maxVisible) {
+        // Show all pages if total is less than max
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(i);
+        }
+    } else {
+        // Always show first page
+        pages.push(1);
+
+        if (currentPage > 3) {
+            pages.push("ellipsis");
+        }
+
+        // Show pages around current page
+        const startPage = Math.max(2, currentPage - 1);
+        const endPage = Math.min(totalPages - 1, currentPage + 1);
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+
+        if (currentPage < totalPages - 2) {
+            pages.push("ellipsis");
+        }
+
+        // Always show last page
+        pages.push(totalPages);
+    }
+
+    return pages;
+}
+
 // Logs Tab
 function LogsTab({
     project,
 }: {
     project: Project;
 }) {
-    const [logsSubTab, setLogsSubTab] = useState<"console" | "application" | "system">("application");
+    const [searchParams] = useSearchParams();
+
+    // Get logs sub-tab from URL, default to "application"
+    const logsSubTab = (searchParams.get("logsTab") as "console" | "application" | "system") || "application";
 
     return (
         <div className="space-y-6">
             {/* Sub-tabs for log types */}
             <div className="border-b border-gray-200">
                 <nav className="flex gap-6">
-                    <button
-                        onClick={() => setLogsSubTab("console")}
+                    <Link
+                        to="?tab=logs&logsTab=console&page=1"
                         className={`pb-3 text-sm font-medium border-b-2 transition-colors ${logsSubTab === "console"
                             ? "border-brand text-brand"
                             : "border-transparent text-neutral hover:text-primary-dark"
                             }`}
                     >
                         Console Logs
-                    </button>
-                    <button
-                        onClick={() => setLogsSubTab("application")}
+                    </Link>
+                    <Link
+                        to="?tab=logs&logsTab=application&page=1"
                         className={`pb-3 text-sm font-medium border-b-2 transition-colors ${logsSubTab === "application"
                             ? "border-brand text-brand"
                             : "border-transparent text-neutral hover:text-primary-dark"
                             }`}
                     >
                         Application Logs
-                    </button>
-                    <button
-                        onClick={() => setLogsSubTab("system")}
+                    </Link>
+                    <Link
+                        to="?tab=logs&logsTab=system&page=1"
                         className={`pb-3 text-sm font-medium border-b-2 transition-colors ${logsSubTab === "system"
                             ? "border-brand text-brand"
                             : "border-transparent text-neutral hover:text-primary-dark"
                             }`}
                     >
                         System Logs
-                    </button>
+                    </Link>
                 </nav>
             </div>
 
@@ -1327,6 +1372,8 @@ function LogsTab({
 // Application Logs Tab
 function ApplicationLogsTab({ project }: { project: Project }) {
     const { token } = useLoaderData<typeof loader>();
+    const [searchParams] = useSearchParams();
+
     const [logs, setLogs] = useState<Log[]>([]);
     const [pagination, setPagination] = useState({
         page: 1,
@@ -1336,10 +1383,9 @@ function ApplicationLogsTab({ project }: { project: Project }) {
     });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [filters, setFilters] = useState<SearchLogsRequest>({
-        page: 1,
-        pageSize: 50,
-    });
+
+    // Get page from URL params, default to 1
+    const currentPage = parseInt(searchParams.get("page") || "1", 10);
 
     // Fetch logs (client-side with Bearer token)
     useEffect(() => {
@@ -1349,9 +1395,15 @@ function ApplicationLogsTab({ project }: { project: Project }) {
 
             try {
                 // Pass token for Authorization header
-                const response = await searchLogs(project.projectId, filters, token);
+                const response = await searchLogs(project.projectId, {
+                    page: currentPage,
+                    pageSize: 50,
+                }, token);
                 setLogs(response.logs);
                 setPagination(response.pagination);
+
+                // Scroll to top when new logs are loaded
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to fetch logs');
             } finally {
@@ -1360,11 +1412,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         };
 
         fetchLogs();
-    }, [project.projectId, filters, token]);
-
-    const handlePageChange = (newPage: number) => {
-        setFilters({ ...filters, page: newPage });
-    };
+    }, [project.projectId, currentPage, token]);
 
     return (
         <Card>
@@ -1403,36 +1451,95 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                     </div>
                 ) : (
                     <>
+                        {/* Top Pagination */}
+                        {pagination.totalPages > 1 && (
+                            <div className="mb-6 pb-6 border-b border-gray-200">
+                                <Pagination>
+                                    <PaginationContent>
+                                        <PaginationItem>
+                                            <PaginationPrevious
+                                                to={pagination.page > 1 ? `?tab=logs&logsTab=application&page=${pagination.page - 1}` : "#"}
+                                                aria-disabled={pagination.page === 1}
+                                                className={pagination.page === 1 ? "pointer-events-none opacity-50" : ""}
+                                            />
+                                        </PaginationItem>
+
+                                        {/* Generate page numbers */}
+                                        {getPageNumbers(pagination.page, pagination.totalPages).map((pageNum, idx) => (
+                                            pageNum === "ellipsis" ? (
+                                                <PaginationItem key={`ellipsis-${idx}`}>
+                                                    <PaginationEllipsis />
+                                                </PaginationItem>
+                                            ) : (
+                                                <PaginationItem key={pageNum}>
+                                                    <PaginationLink
+                                                        to={`?tab=logs&logsTab=application&page=${pageNum}`}
+                                                        isActive={pageNum === pagination.page}
+                                                    >
+                                                        {pageNum}
+                                                    </PaginationLink>
+                                                </PaginationItem>
+                                            )
+                                        ))}
+
+                                        <PaginationItem>
+                                            <PaginationNext
+                                                to={pagination.page < pagination.totalPages ? `?tab=logs&logsTab=application&page=${pagination.page + 1}` : "#"}
+                                                aria-disabled={pagination.page === pagination.totalPages}
+                                                className={pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""}
+                                            />
+                                        </PaginationItem>
+                                    </PaginationContent>
+                                </Pagination>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             {logs.map((log) => (
                                 <LogCard key={log._id} log={log} />
                             ))}
                         </div>
 
-                        {/* Pagination */}
+                        {/* Bottom Pagination */}
                         {pagination.totalPages > 1 && (
-                            <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-                                <div className="text-sm text-neutral">
-                                    Page {pagination.page} of {pagination.totalPages}
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => handlePageChange(pagination.page - 1)}
-                                        disabled={pagination.page === 1}
-                                        className="text-sm"
-                                    >
-                                        Previous
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => handlePageChange(pagination.page + 1)}
-                                        disabled={pagination.page === pagination.totalPages}
-                                        className="text-sm"
-                                    >
-                                        Next
-                                    </Button>
-                                </div>
+                            <div className="mt-6 pt-6 border-t border-gray-200">
+                                <Pagination>
+                                    <PaginationContent>
+                                        <PaginationItem>
+                                            <PaginationPrevious
+                                                to={pagination.page > 1 ? `?tab=logs&logsTab=application&page=${pagination.page - 1}` : "#"}
+                                                aria-disabled={pagination.page === 1}
+                                                className={pagination.page === 1 ? "pointer-events-none opacity-50" : ""}
+                                            />
+                                        </PaginationItem>
+
+                                        {/* Generate page numbers */}
+                                        {getPageNumbers(pagination.page, pagination.totalPages).map((pageNum, idx) => (
+                                            pageNum === "ellipsis" ? (
+                                                <PaginationItem key={`ellipsis-${idx}`}>
+                                                    <PaginationEllipsis />
+                                                </PaginationItem>
+                                            ) : (
+                                                <PaginationItem key={pageNum}>
+                                                    <PaginationLink
+                                                        to={`?tab=logs&logsTab=application&page=${pageNum}`}
+                                                        isActive={pageNum === pagination.page}
+                                                    >
+                                                        {pageNum}
+                                                    </PaginationLink>
+                                                </PaginationItem>
+                                            )
+                                        ))}
+
+                                        <PaginationItem>
+                                            <PaginationNext
+                                                to={pagination.page < pagination.totalPages ? `?tab=logs&logsTab=application&page=${pagination.page + 1}` : "#"}
+                                                aria-disabled={pagination.page === pagination.totalPages}
+                                                className={pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""}
+                                            />
+                                        </PaginationItem>
+                                    </PaginationContent>
+                                </Pagination>
                             </div>
                         )}
                     </>
