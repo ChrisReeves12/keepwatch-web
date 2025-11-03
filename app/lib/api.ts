@@ -286,3 +286,69 @@ export async function updateProject(token: string, projectId: string, data: Upda
     return result.project;
 }
 
+/**
+ * Log Types and Interfaces
+ */
+export interface Log {
+    _id?: string;
+    level: string;
+    environment: string;
+    projectId: string;
+    projectObjectId: string;
+    message: string;
+    stackTrace: Array<Record<string, any>>;
+    rawStackTrace?: string;
+    details: Record<string, any>;
+    detailString: string | null;
+    timestampMS: number;
+    createdAt: Date;
+}
+
+export interface MessageCondition {
+    field: string;
+    value: string;
+}
+
+export interface MessageFilter {
+    operator: 'AND' | 'OR';
+    conditions: MessageCondition[];
+}
+
+export interface SearchLogsRequest {
+    page?: number;
+    pageSize?: number;
+    level?: string;
+    environment?: string;
+    message?: MessageFilter;
+    stackTrace?: MessageFilter;
+    details?: MessageFilter;
+}
+
+export interface SearchLogsResponse {
+    logs: Log[];
+    pagination: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+    };
+}
+
+/**
+ * Search application logs for a project
+ */
+export async function searchLogs(projectId: string, filters: SearchLogsRequest = {}, token?: string): Promise<SearchLogsResponse> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}/search`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify(filters),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to search logs');
+    }
+
+    return response.json();
+}
+
