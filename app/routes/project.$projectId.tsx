@@ -1372,7 +1372,7 @@ function LogsTab({
 // Application Logs Tab
 function ApplicationLogsTab({ project }: { project: Project }) {
     const { token } = useLoaderData<typeof loader>();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const [logs, setLogs] = useState<Log[]>([]);
     const [pagination, setPagination] = useState({
@@ -1384,8 +1384,10 @@ function ApplicationLogsTab({ project }: { project: Project }) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Get page from URL params, default to 1
+    // Get filters from URL params
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
+    const levelFilter = searchParams.get("level") || "";
+    const environmentFilter = searchParams.get("environment") || "";
 
     // Fetch logs (client-side with Bearer token)
     useEffect(() => {
@@ -1394,11 +1396,24 @@ function ApplicationLogsTab({ project }: { project: Project }) {
             setError(null);
 
             try {
-                // Pass token for Authorization header
-                const response = await searchLogs(project.projectId, {
+                // Build filters object
+                const filters: SearchLogsRequest = {
                     page: currentPage,
                     pageSize: 50,
-                }, token);
+                };
+
+                // Add level filter if selected
+                if (levelFilter && levelFilter !== "all") {
+                    filters.level = levelFilter;
+                }
+
+                // Add environment filter if provided
+                if (environmentFilter) {
+                    filters.environment = environmentFilter;
+                }
+
+                // Pass token for Authorization header
+                const response = await searchLogs(project.projectId, filters, token);
                 setLogs(response.logs);
                 setPagination(response.pagination);
 
@@ -1412,7 +1427,45 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, token]);
+    }, [project.projectId, currentPage, levelFilter, environmentFilter, token]);
+
+    // Handle filter changes
+    const handleLevelChange = (level: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (level === "all") {
+            newParams.delete("level");
+        } else {
+            newParams.set("level", level);
+        }
+        newParams.set("page", "1"); // Reset to page 1 when filter changes
+        setSearchParams(newParams);
+    };
+
+    const handleEnvironmentChange = (environment: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (environment) {
+            newParams.set("environment", environment);
+        } else {
+            newParams.delete("environment");
+        }
+        newParams.set("page", "1"); // Reset to page 1 when filter changes
+        setSearchParams(newParams);
+    };
+
+    const clearFilters = () => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("level");
+        newParams.delete("environment");
+        newParams.set("page", "1");
+        setSearchParams(newParams);
+    };
+
+    // Helper to build pagination URL with all current filters
+    const buildPaginationUrl = (page: number) => {
+        const params = new URLSearchParams(searchParams);
+        params.set("page", page.toString());
+        return `?${params.toString()}`;
+    };
 
     return (
         <Card>
@@ -1428,6 +1481,48 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                         <span className="text-sm text-neutral">
                             {pagination.total} total logs
                         </span>
+                    )}
+                </div>
+
+                {/* Filters */}
+                <div className="mt-6 flex flex-wrap items-end gap-4">
+                    <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
+                        <Label htmlFor="environment-filter">Environment</Label>
+                        <Input
+                            id="environment-filter"
+                            type="text"
+                            placeholder="Filter by environment..."
+                            value={environmentFilter}
+                            onChange={(e) => handleEnvironmentChange(e.target.value)}
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div className="w-[200px]">
+                        <Label htmlFor="level-filter">Log Level</Label>
+                        <select
+                            id="level-filter"
+                            value={levelFilter || "all"}
+                            onChange={(e) => handleLevelChange(e.target.value)}
+                            className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
+                        >
+                            <option value="all">All Levels</option>
+                            <option value="INFO">INFO</option>
+                            <option value="DEBUG">DEBUG</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                            <option value="CRITICAL">CRITICAL</option>
+                        </select>
+                    </div>
+
+                    {(levelFilter || environmentFilter) && (
+                        <Button
+                            variant="outline"
+                            onClick={clearFilters}
+                            className="mb-0.5"
+                        >
+                            Clear Filters
+                        </Button>
                     )}
                 </div>
             </CardHeader>
@@ -1458,7 +1553,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                                     <PaginationContent>
                                         <PaginationItem>
                                             <PaginationPrevious
-                                                to={pagination.page > 1 ? `?tab=logs&logsTab=application&page=${pagination.page - 1}` : "#"}
+                                                to={pagination.page > 1 ? buildPaginationUrl(pagination.page - 1) : "#"}
                                                 aria-disabled={pagination.page === 1}
                                                 className={pagination.page === 1 ? "pointer-events-none opacity-50" : ""}
                                             />
@@ -1473,7 +1568,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                                             ) : (
                                                 <PaginationItem key={pageNum}>
                                                     <PaginationLink
-                                                        to={`?tab=logs&logsTab=application&page=${pageNum}`}
+                                                        to={buildPaginationUrl(pageNum as number)}
                                                         isActive={pageNum === pagination.page}
                                                     >
                                                         {pageNum}
@@ -1484,7 +1579,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
 
                                         <PaginationItem>
                                             <PaginationNext
-                                                to={pagination.page < pagination.totalPages ? `?tab=logs&logsTab=application&page=${pagination.page + 1}` : "#"}
+                                                to={pagination.page < pagination.totalPages ? buildPaginationUrl(pagination.page + 1) : "#"}
                                                 aria-disabled={pagination.page === pagination.totalPages}
                                                 className={pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""}
                                             />
@@ -1507,7 +1602,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                                     <PaginationContent>
                                         <PaginationItem>
                                             <PaginationPrevious
-                                                to={pagination.page > 1 ? `?tab=logs&logsTab=application&page=${pagination.page - 1}` : "#"}
+                                                to={pagination.page > 1 ? buildPaginationUrl(pagination.page - 1) : "#"}
                                                 aria-disabled={pagination.page === 1}
                                                 className={pagination.page === 1 ? "pointer-events-none opacity-50" : ""}
                                             />
@@ -1522,7 +1617,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                                             ) : (
                                                 <PaginationItem key={pageNum}>
                                                     <PaginationLink
-                                                        to={`?tab=logs&logsTab=application&page=${pageNum}`}
+                                                        to={buildPaginationUrl(pageNum as number)}
                                                         isActive={pageNum === pagination.page}
                                                     >
                                                         {pageNum}
@@ -1533,7 +1628,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
 
                                         <PaginationItem>
                                             <PaginationNext
-                                                to={pagination.page < pagination.totalPages ? `?tab=logs&logsTab=application&page=${pagination.page + 1}` : "#"}
+                                                to={pagination.page < pagination.totalPages ? buildPaginationUrl(pagination.page + 1) : "#"}
                                                 aria-disabled={pagination.page === pagination.totalPages}
                                                 className={pagination.page === pagination.totalPages ? "pointer-events-none opacity-50" : ""}
                                             />
