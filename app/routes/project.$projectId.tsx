@@ -532,7 +532,7 @@ function CreateAPIKeyDialog({
                         )}
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
                             <div className="flex gap-3">
-                                <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
                                 <div>
                                     <p className="text-sm font-medium text-yellow-800">Important</p>
                                     <p className="text-sm text-yellow-700 mt-1">
@@ -599,7 +599,7 @@ function NewAPIKeyDialog({
                 <DialogBody>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
                         <div className="flex gap-3">
-                            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
                             <div>
                                 <p className="text-sm font-medium text-yellow-800">This is your only chance!</p>
                                 <p className="text-sm text-yellow-700 mt-1">
@@ -617,7 +617,7 @@ function NewAPIKeyDialog({
                             </code>
                             <button
                                 onClick={copyKey}
-                                className="text-brand hover:text-[#FFB30D] transition-colors flex-shrink-0"
+                                className="text-brand hover:text-[#FFB30D] transition-colors shrink-0"
                                 title="Copy to clipboard"
                             >
                                 {copied ? (
@@ -678,7 +678,7 @@ function DeleteAPIKeyDialog({
                         )}
                         <div className="bg-red-50 border border-red-200 rounded-md p-4">
                             <div className="flex gap-3">
-                                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                                 <div>
                                     <p className="text-sm font-medium text-red-800">This action cannot be undone</p>
                                     <p className="text-sm text-red-700 mt-1">
@@ -801,7 +801,7 @@ function APIKeyCard({
                     </code>
                     <p className="text-xs text-neutral">Created {moment(apiKey.createdAt).fromNow()}</p>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 shrink-0">
                     <button
                         onClick={() => setShowKey(!showKey)}
                         className="text-sm text-brand hover:text-[#FFB30D]"
@@ -956,7 +956,7 @@ function RemoveUserDialog({
                         )}
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
                             <div className="flex gap-3">
-                                <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
                                 <div>
                                     <p className="text-sm font-medium text-yellow-800">
                                         Removing {userName || 'this user'}
@@ -1027,7 +1027,7 @@ function TeamTab({
                             return (
                                 <div key={user.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-4">
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="h-10 w-10 bg-brand rounded-full flex items-center justify-center flex-shrink-0">
+                                        <div className="h-10 w-10 bg-brand rounded-full flex items-center justify-center shrink-0">
                                             <Users className="h-5 w-5 text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -1043,7 +1043,7 @@ function TeamTab({
                                             <p className="text-xs text-neutral capitalize mt-1">{user.role}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className="flex items-center gap-2 shrink-0">
                                         <span className="text-sm px-3 py-1 bg-brand/10 text-brand rounded-full capitalize">
                                             {user.role}
                                         </span>
@@ -1104,7 +1104,7 @@ function DeleteProjectDialog({
                         )}
                         <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
                             <div className="flex gap-3">
-                                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                                 <div>
                                     <p className="text-sm font-medium text-red-800">Warning: This is permanent!</p>
                                     <p className="text-sm text-red-700 mt-1">
@@ -1258,6 +1258,28 @@ function getLogLevelStyle(level: string): { icon: any; color: string; bgColor: s
     }
 }
 
+// Helper function to format large numbers
+function formatNumber(num: number): string {
+    if (num < 1000) {
+        return num.toString();
+    } else if (num < 100000) {
+        // Use commas for thousands up to 99,999
+        return num.toLocaleString();
+    } else if (num < 1000000) {
+        // Use 'k' for hundreds of thousands
+        const thousands = num / 1000;
+        return thousands % 1 === 0 ? `${thousands}k` : `${thousands.toFixed(1)}k`;
+    } else if (num < 1000000000) {
+        // Use 'm' for millions
+        const millions = num / 1000000;
+        return millions % 1 === 0 ? `${millions}m` : `${millions.toFixed(1)}m`;
+    } else {
+        // Use 'b' for billions
+        const billions = num / 1000000000;
+        return billions % 1 === 0 ? `${billions}b` : `${billions.toFixed(1)}b`;
+    }
+}
+
 // Helper function to generate pagination page numbers with ellipsis
 function getPageNumbers(currentPage: number, totalPages: number): (number | "ellipsis")[] {
     const pages: (number | "ellipsis")[] = [];
@@ -1387,12 +1409,16 @@ function ApplicationLogsTab({ project }: { project: Project }) {
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showCustomRange, setShowCustomRange] = useState(false);
 
     // Get filters from URL params (support arrays)
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
     const levelFilters = searchParams.getAll("level");
     const environmentFilters = searchParams.getAll("environment");
     const searchQuery = searchParams.get("search") || "";
+    const timeRange = searchParams.get("timeRange") || "";
+    const customStartTime = searchParams.get("startTime") || "";
+    const customEndTime = searchParams.get("endTime") || "";
 
     // Sync search input with URL param on mount
     useEffect(() => {
@@ -1460,6 +1486,48 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                     };
                 }
 
+                // Add time range filters
+                if (timeRange) {
+                    const now = Date.now();
+                    let startTime: number | undefined;
+
+                    switch (timeRange) {
+                        case '5m':
+                            startTime = now - (5 * 60 * 1000);
+                            break;
+                        case '30m':
+                            startTime = now - (30 * 60 * 1000);
+                            break;
+                        case '1h':
+                            startTime = now - (60 * 60 * 1000);
+                            break;
+                        case '6h':
+                            startTime = now - (6 * 60 * 60 * 1000);
+                            break;
+                        case '12h':
+                            startTime = now - (12 * 60 * 60 * 1000);
+                            break;
+                        case '1d':
+                            startTime = now - (24 * 60 * 60 * 1000);
+                            break;
+                        case 'custom':
+                            // Use custom range from URL params
+                            if (customStartTime) {
+                                filters.startTime = parseInt(customStartTime, 10);
+                            }
+                            if (customEndTime) {
+                                filters.endTime = parseInt(customEndTime, 10);
+                            }
+                            break;
+                    }
+
+                    // For non-custom ranges, set startTime and endTime to now
+                    if (timeRange !== 'custom' && startTime) {
+                        filters.startTime = startTime;
+                        filters.endTime = now;
+                    }
+                }
+
                 // Pass token for Authorization header
                 const response = await searchLogs(project.projectId, filters, token);
 
@@ -1488,7 +1556,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), searchQuery, token]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, token]);
 
     // Handle filter changes for multi-select
     const toggleLevelFilter = (level: string) => {
@@ -1535,13 +1603,57 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         setSearchParams(newParams);
     };
 
+    const handleTimeRangeChange = (range: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (range === 'all') {
+            newParams.delete("timeRange");
+            newParams.delete("startTime");
+            newParams.delete("endTime");
+        } else {
+            newParams.set("timeRange", range);
+            // Clear custom times when selecting quick option
+            if (range !== 'custom') {
+                newParams.delete("startTime");
+                newParams.delete("endTime");
+            }
+        }
+        newParams.set("page", "1");
+        setSearchParams(newParams);
+    };
+
+    const handleCustomTimeRange = (start: string, end: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set("timeRange", "custom");
+
+        if (start) {
+            const startMs = new Date(start).getTime();
+            newParams.set("startTime", startMs.toString());
+        } else {
+            newParams.delete("startTime");
+        }
+
+        if (end) {
+            const endMs = new Date(end).getTime();
+            newParams.set("endTime", endMs.toString());
+        } else {
+            newParams.delete("endTime");
+        }
+
+        newParams.set("page", "1");
+        setSearchParams(newParams);
+    };
+
     const clearFilters = () => {
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("level");
         newParams.delete("environment");
         newParams.delete("search");
+        newParams.delete("timeRange");
+        newParams.delete("startTime");
+        newParams.delete("endTime");
         newParams.set("page", "1");
         setSearchParams(newParams);
+        setShowCustomRange(false);
     };
 
     // Helper to build pagination URL with all current filters
@@ -1563,7 +1675,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                     </div>
                     {pagination.total > 0 && (
                         <span className="text-sm text-neutral">
-                            {pagination.total} total logs
+                            {formatNumber(pagination.total)} total logs
                         </span>
                     )}
                 </div>
@@ -1604,6 +1716,67 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                                     </button>
                                 </span>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Time Range Filter */}
+                    <div className="flex flex-wrap items-start gap-4">
+                        <div className="w-[200px]">
+                            <Label htmlFor="time-range" className="mb-2 block">Time Range</Label>
+                            <select
+                                id="time-range"
+                                value={timeRange || "all"}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === 'custom') {
+                                        setShowCustomRange(true);
+                                        handleTimeRangeChange('custom');
+                                    } else {
+                                        setShowCustomRange(false);
+                                        handleTimeRangeChange(value);
+                                    }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
+                            >
+                                <option value="all">All Time</option>
+                                <option value="5m">Last 5 minutes</option>
+                                <option value="30m">Last 30 minutes</option>
+                                <option value="1h">Last hour</option>
+                                <option value="6h">Last 6 hours</option>
+                                <option value="12h">Last 12 hours</option>
+                                <option value="1d">Last 24 hours</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+
+                        {/* Custom Date Range Inputs */}
+                        {(showCustomRange || timeRange === 'custom') && (
+                            <>
+                                <div className="flex-1 min-w-[200px]">
+                                    <Label htmlFor="start-time" className="mb-2 block">Start Time</Label>
+                                    <Input
+                                        id="start-time"
+                                        type="datetime-local"
+                                        defaultValue={customStartTime ? moment(parseInt(customStartTime)).format('YYYY-MM-DDTHH:mm') : ''}
+                                        onChange={(e) => {
+                                            const endValue = customEndTime ? moment(parseInt(customEndTime)).format('YYYY-MM-DDTHH:mm') : '';
+                                            handleCustomTimeRange(e.target.value, endValue);
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-[200px]">
+                                    <Label htmlFor="end-time" className="mb-2 block">End Time</Label>
+                                    <Input
+                                        id="end-time"
+                                        type="datetime-local"
+                                        defaultValue={customEndTime ? moment(parseInt(customEndTime)).format('YYYY-MM-DDTHH:mm') : ''}
+                                        onChange={(e) => {
+                                            const startValue = customStartTime ? moment(parseInt(customStartTime)).format('YYYY-MM-DDTHH:mm') : '';
+                                            handleCustomTimeRange(startValue, e.target.value);
+                                        }}
+                                    />
+                                </div>
+                            </>
                         )}
                     </div>
 
@@ -1735,7 +1908,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                             )}
                         </div>
 
-                        {(levelFilters.length > 0 || environmentFilters.length > 0 || searchQuery) && (
+                        {(levelFilters.length > 0 || environmentFilters.length > 0 || searchQuery || timeRange) && (
                             <Button
                                 variant="outline"
                                 onClick={clearFilters}

@@ -328,6 +328,8 @@ export interface SearchLogsRequest {
     stackTrace?: MessageFilter;
     details?: MessageFilter;
     docFilter?: DocFilter;
+    startTime?: number;
+    endTime?: number;
 }
 
 export interface SearchLogsResponse {
