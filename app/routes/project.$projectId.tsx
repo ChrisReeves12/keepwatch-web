@@ -1377,24 +1377,62 @@ function ApplicationLogsTab({ project }: { project: Project }) {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [logs, setLogs] = useState<Log[]>([]);
+    const [searchInput, setSearchInput] = useState("");
     const [pagination, setPagination] = useState({
         page: 1,
         pageSize: 50,
         total: 0,
         totalPages: 0,
     });
-    const [isLoading, setIsLoading] = useState(true);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Get filters from URL params (support arrays)
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
     const levelFilters = searchParams.getAll("level");
     const environmentFilters = searchParams.getAll("environment");
+    const searchQuery = searchParams.get("search") || "";
+
+    // Sync search input with URL param on mount
+    useEffect(() => {
+        setSearchInput(searchQuery);
+    }, [searchQuery]);
+
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchInput !== searchQuery) {
+                const newParams = new URLSearchParams(searchParams);
+                if (searchInput) {
+                    newParams.set("search", searchInput);
+                } else {
+                    newParams.delete("search");
+                }
+                newParams.set("page", "1");
+                setSearchParams(newParams);
+            }
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timer);
+    }, [searchInput, searchQuery, searchParams, setSearchParams]);
 
     // Fetch logs (client-side with Bearer token)
     useEffect(() => {
         const fetchLogs = async () => {
-            setIsLoading(true);
+            const hasExistingLogs = logs.length > 0;
+            let refreshTimer: NodeJS.Timeout | null = null;
+
+            // Only show initial loader if no logs exist
+            if (!hasExistingLogs) {
+                setIsInitialLoad(true);
+            } else {
+                // Delay showing refresh indicator to avoid flicker on fast requests
+                refreshTimer = setTimeout(() => {
+                    setIsRefreshing(true);
+                }, 300); // Only show if request takes longer than 300ms
+            }
+
             setError(null);
 
             try {
@@ -1414,22 +1452,43 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                     filters.environment = environmentFilters.length === 1 ? environmentFilters[0] : environmentFilters;
                 }
 
+                // Add document search filter if provided
+                if (searchQuery) {
+                    filters.docFilter = {
+                        phrase: searchQuery,
+                        matchType: 'contains'
+                    };
+                }
+
                 // Pass token for Authorization header
                 const response = await searchLogs(project.projectId, filters, token);
+
+                // Clear the refresh timer if request completed quickly
+                if (refreshTimer) {
+                    clearTimeout(refreshTimer);
+                }
+
                 setLogs(response.logs);
                 setPagination(response.pagination);
 
-                // Scroll to top when new logs are loaded
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Scroll to top when new logs are loaded (only on initial load)
+                if (!hasExistingLogs) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
             } catch (err) {
+                // Clear the refresh timer on error too
+                if (refreshTimer) {
+                    clearTimeout(refreshTimer);
+                }
                 setError(err instanceof Error ? err.message : 'Failed to fetch logs');
             } finally {
-                setIsLoading(false);
+                setIsInitialLoad(false);
+                setIsRefreshing(false);
             }
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), token]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), searchQuery, token]);
 
     // Handle filter changes for multi-select
     const toggleLevelFilter = (level: string) => {
@@ -1480,6 +1539,7 @@ function ApplicationLogsTab({ project }: { project: Project }) {
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("level");
         newParams.delete("environment");
+        newParams.delete("search");
         newParams.set("page", "1");
         setSearchParams(newParams);
     };
@@ -1509,146 +1569,196 @@ function ApplicationLogsTab({ project }: { project: Project }) {
                 </div>
 
                 {/* Filters */}
-                <div className="mt-6 flex flex-wrap items-start gap-4">
-                    {/* Environment Multi-Select */}
-                    <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
-                        <Label className="mb-2 block">Environment</Label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full justify-between">
-                                    <span className="truncate">
-                                        {environmentFilters.length === 0
-                                            ? "All Environments"
-                                            : `${environmentFilters.length} selected`}
-                                    </span>
-                                    <Filter className="ml-2 h-4 w-4 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[200px] p-3">
-                                <div className="space-y-2">
-                                    <Input
-                                        placeholder="Add environment..."
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.currentTarget.value) {
-                                                toggleEnvironmentFilter(e.currentTarget.value);
-                                                e.currentTarget.value = '';
-                                            }
-                                        }}
-                                        className="mb-2"
-                                    />
-                                    {environmentFilters.length > 0 && (
-                                        <>
-                                            <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
-                                            {environmentFilters.map((env) => (
-                                                <div key={env} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={`env-${env}`}
-                                                        checked={true}
-                                                        onCheckedChange={() => toggleEnvironmentFilter(env)}
-                                                    />
-                                                    <label
-                                                        htmlFor={`env-${env}`}
-                                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                                    >
-                                                        {env}
-                                                    </label>
-                                                </div>
-                                            ))}
-                                        </>
-                                    )}
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                        {environmentFilters.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {environmentFilters.map((env) => (
-                                    <span
-                                        key={env}
-                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
+                <div className="mt-6 space-y-4">
+                    {/* Search Bar */}
+                    <div className="w-full">
+                        <Label htmlFor="search-logs" className="mb-2 block">Search Logs</Label>
+                        <div className="relative">
+                            <Input
+                                id="search-logs"
+                                type="text"
+                                placeholder="Search across message, stack trace, and details..."
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                className="pr-10"
+                            />
+                            {searchInput && (
+                                <button
+                                    onClick={() => setSearchInput("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-primary-dark"
+                                    aria-label="Clear search"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                        {searchQuery && (
+                            <div className="flex items-center gap-2 mt-2">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded">
+                                    Searching: "{searchQuery}"
+                                    <button
+                                        onClick={() => setSearchInput("")}
+                                        className="hover:text-brand/70"
                                     >
-                                        {env}
-                                        <button
-                                            onClick={() => toggleEnvironmentFilter(env)}
-                                            className="hover:text-brand/70"
-                                        >
-                                            ×
-                                        </button>
-                                    </span>
-                                ))}
+                                        ×
+                                    </button>
+                                </span>
                             </div>
                         )}
                     </div>
 
-                    {/* Log Level Multi-Select */}
-                    <div className="w-[200px]">
-                        <Label className="mb-2 block">Log Level</Label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full justify-between">
-                                    <span className="truncate">
-                                        {levelFilters.length === 0
-                                            ? "All Levels"
-                                            : `${levelFilters.length} selected`}
-                                    </span>
-                                    <Filter className="ml-2 h-4 w-4 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[200px] p-3">
-                                <div className="space-y-2">
-                                    {['INFO', 'DEBUG', 'WARNING', 'ERROR', 'CRITICAL'].map((level) => (
-                                        <div key={level} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`level-${level}`}
-                                                checked={levelFilters.includes(level)}
-                                                onCheckedChange={() => toggleLevelFilter(level)}
-                                            />
-                                            <label
-                                                htmlFor={`level-${level}`}
-                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                            >
-                                                {level}
-                                            </label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                        {levelFilters.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {levelFilters.map((level) => {
-                                    const style = getLogLevelStyle(level);
-                                    return (
+                    {/* Filter Row */}
+                    <div className="flex flex-wrap items-start gap-4">
+                        {/* Environment Multi-Select */}
+                        <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
+                            <Label className="mb-2 block">Environment</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between">
+                                        <span className="truncate">
+                                            {environmentFilters.length === 0
+                                                ? "All Environments"
+                                                : `${environmentFilters.length} selected`}
+                                        </span>
+                                        <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[200px] p-3">
+                                    <div className="space-y-2">
+                                        <Input
+                                            placeholder="Add environment..."
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && e.currentTarget.value) {
+                                                    toggleEnvironmentFilter(e.currentTarget.value);
+                                                    e.currentTarget.value = '';
+                                                }
+                                            }}
+                                            className="mb-2"
+                                        />
+                                        {environmentFilters.length > 0 && (
+                                            <>
+                                                <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
+                                                {environmentFilters.map((env) => (
+                                                    <div key={env} className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`env-${env}`}
+                                                            checked={true}
+                                                            onCheckedChange={() => toggleEnvironmentFilter(env)}
+                                                        />
+                                                        <label
+                                                            htmlFor={`env-${env}`}
+                                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                                        >
+                                                            {env}
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                            {environmentFilters.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {environmentFilters.map((env) => (
                                         <span
-                                            key={level}
-                                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${style.bgColor} ${style.color}`}
+                                            key={env}
+                                            className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
                                         >
-                                            {level}
+                                            {env}
                                             <button
-                                                onClick={() => toggleLevelFilter(level)}
-                                                className="hover:opacity-70"
+                                                onClick={() => toggleEnvironmentFilter(env)}
+                                                className="hover:text-brand/70"
                                             >
                                                 ×
                                             </button>
                                         </span>
-                                    );
-                                })}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Log Level Multi-Select */}
+                        <div className="w-[200px]">
+                            <Label className="mb-2 block">Log Level</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between">
+                                        <span className="truncate">
+                                            {levelFilters.length === 0
+                                                ? "All Levels"
+                                                : `${levelFilters.length} selected`}
+                                        </span>
+                                        <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[200px] p-3">
+                                    <div className="space-y-2">
+                                        {['INFO', 'DEBUG', 'WARNING', 'ERROR', 'CRITICAL'].map((level) => (
+                                            <div key={level} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`level-${level}`}
+                                                    checked={levelFilters.includes(level)}
+                                                    onCheckedChange={() => toggleLevelFilter(level)}
+                                                />
+                                                <label
+                                                    htmlFor={`level-${level}`}
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                                >
+                                                    {level}
+                                                </label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                            {levelFilters.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {levelFilters.map((level) => {
+                                        const style = getLogLevelStyle(level);
+                                        return (
+                                            <span
+                                                key={level}
+                                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${style.bgColor} ${style.color}`}
+                                            >
+                                                {level}
+                                                <button
+                                                    onClick={() => toggleLevelFilter(level)}
+                                                    className="hover:opacity-70"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {(levelFilters.length > 0 || environmentFilters.length > 0 || searchQuery) && (
+                            <Button
+                                variant="outline"
+                                onClick={clearFilters}
+                                className="mt-6"
+                            >
+                                Clear All Filters
+                            </Button>
                         )}
                     </div>
-
-                    {(levelFilters.length > 0 || environmentFilters.length > 0) && (
-                        <Button
-                            variant="outline"
-                            onClick={clearFilters}
-                            className="mt-6"
-                        >
-                            Clear All Filters
-                        </Button>
-                    )}
                 </div>
             </CardHeader>
-            <CardContent>
-                {isLoading ? (
+            <CardContent className="relative">
+                {/* Soft overlay loader */}
+                {isRefreshing && (
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-lg border border-gray-200">
+                            <Activity className="h-4 w-4 text-brand animate-spin" />
+                            <span className="text-sm text-neutral">Updating...</span>
+                        </div>
+                    </div>
+                )}
+
+                {isInitialLoad ? (
                     <div className="text-center py-8">
                         <Activity className="h-12 w-12 text-neutral mx-auto mb-4 animate-spin" />
                         <p className="text-neutral">Loading logs...</p>

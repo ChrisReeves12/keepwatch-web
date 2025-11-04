@@ -314,6 +314,11 @@ export interface MessageFilter {
     conditions: MessageCondition[];
 }
 
+export interface DocFilter {
+    phrase: string;
+    matchType: 'contains';
+}
+
 export interface SearchLogsRequest {
     page?: number;
     pageSize?: number;
@@ -322,6 +327,7 @@ export interface SearchLogsRequest {
     message?: MessageFilter;
     stackTrace?: MessageFilter;
     details?: MessageFilter;
+    docFilter?: DocFilter;
 }
 
 export interface SearchLogsResponse {
