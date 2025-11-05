@@ -45,6 +45,33 @@ export interface ProjectsResponse {
     projects: Project[];
 }
 
+export interface Alarm {
+    id: string;
+    _id?: string;
+    logType: string;
+    message: string;
+    level: string;
+    environment: string;
+    deliveryMethods: {
+        email?: {
+            addresses: string[];
+        };
+        slack?: {
+            webhook: string;
+        };
+        webhook?: {
+            url: string;
+        };
+    };
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface AlarmsResponse {
+    alarms: Alarm[];
+    count: number;
+}
+
 /**
  * Authenticate user with email and password
  */
@@ -355,6 +382,78 @@ export async function searchLogs(projectId: string, filters: SearchLogsRequest =
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to search logs');
+    }
+
+    return response.json();
+}
+
+/**
+ * Fetch alarms for a project
+ */
+export async function fetchProjectAlarms(token: string, projectId: string): Promise<AlarmsResponse> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/alarms`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch alarms: ${response.statusText}`);
+    }
+
+    return response.json();
+}
+
+/**
+ * Create a new alarm for a project
+ */
+export async function createAlarm(token: string, projectId: string, alarmData: Omit<Alarm, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Alarm> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/alarms`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify(alarmData),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create alarm' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to create alarm`);
+    }
+
+    return response.json();
+}
+
+/**
+ * Delete an alarm from a project
+ * If no alarmId is provided, deletes all alarms for the project
+ */
+export async function deleteProjectAlarm(token: string, projectId: string, alarmId?: string): Promise<void> {
+    const endpoint = alarmId 
+        ? `/v1/projects/${projectId}/alarms/${alarmId}`
+        : `/v1/projects/${projectId}/alarms`;
+    
+    const response = await authenticatedFetch(endpoint, {
+        method: 'DELETE',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete alarm' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to delete alarm`);
+    }
+}
+
+/**
+ * Update an alarm in a project
+ */
+export async function updateProjectAlarm(token: string, projectId: string, alarmId: string, alarmData: Omit<Alarm, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Alarm> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/alarms/${alarmId}`, {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(alarmData),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update alarm' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to update alarm`);
     }
 
     return response.json();
