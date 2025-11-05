@@ -1456,6 +1456,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
     const levelFilters = searchParams.getAll("level");
     const environmentFilters = searchParams.getAll("environment");
+    const hostnameFilters = searchParams.getAll("hostname");
     const searchQuery = searchParams.get("search") || "";
     const timeRange = searchParams.get("timeRange") || "";
     const customStartTime = searchParams.get("startTime") || "";
@@ -1507,6 +1508,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                 const filters: SearchLogsRequest = {
                     page: currentPage,
                     pageSize: 50,
+                    logType: "application",
                 };
 
                 // Add level filters if selected (send as array if multiple, string if single)
@@ -1517,6 +1519,11 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                 // Add environment filters if provided (send as array if multiple, string if single)
                 if (environmentFilters.length > 0) {
                     filters.environment = environmentFilters.length === 1 ? environmentFilters[0] : environmentFilters;
+                }
+
+                // Add hostname filters if provided (send as array if multiple, string if single)
+                if (hostnameFilters.length > 0) {
+                    filters.hostname = hostnameFilters.length === 1 ? hostnameFilters[0] : hostnameFilters;
                 }
 
                 // Add document search filter if provided
@@ -1597,7 +1604,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, token, searchParams.get('_refresh')]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, token, searchParams.get('_refresh')]);
 
     // Handle filter changes for multi-select
     const toggleLevelFilter = (level: string) => {
@@ -1639,6 +1646,28 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
 
         // Add back all selected environments
         newEnvironments.forEach(e => newParams.append("environment", e));
+
+        newParams.set("page", "1"); // Reset to page 1 when filter changes
+        setSearchParams(newParams);
+    };
+
+    const toggleHostnameFilter = (hostname: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("hostname"); // Clear all hostname params
+
+        const currentHostnames = hostnameFilters;
+        let newHostnames: string[];
+
+        if (currentHostnames.includes(hostname)) {
+            // Remove the hostname
+            newHostnames = currentHostnames.filter(h => h !== hostname);
+        } else {
+            // Add the hostname
+            newHostnames = [...currentHostnames, hostname];
+        }
+
+        // Add back all selected hostnames
+        newHostnames.forEach(h => newParams.append("hostname", h));
 
         newParams.set("page", "1"); // Reset to page 1 when filter changes
         setSearchParams(newParams);
@@ -1688,6 +1717,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("level");
         newParams.delete("environment");
+        newParams.delete("hostname");
         newParams.delete("search");
         newParams.delete("timeRange");
         newParams.delete("startTime");
@@ -1894,6 +1924,75 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                                 )}
                             </div>
 
+                            {/* Hostname Multi-Select */}
+                            <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
+                                <Label className="mb-2 block">Hostname</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between">
+                                            <span className="truncate">
+                                                {hostnameFilters.length === 0
+                                                    ? "All Hostnames"
+                                                    : `${hostnameFilters.length} selected`}
+                                            </span>
+                                            <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[200px] p-3">
+                                        <div className="space-y-2">
+                                            <Input
+                                                placeholder="Add hostname..."
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && e.currentTarget.value) {
+                                                        toggleHostnameFilter(e.currentTarget.value);
+                                                        e.currentTarget.value = '';
+                                                    }
+                                                }}
+                                                className="mb-2"
+                                            />
+                                            {hostnameFilters.length > 0 && (
+                                                <>
+                                                    <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
+                                                    {hostnameFilters.map((hostname) => (
+                                                        <div key={hostname} className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id={`hostname-${hostname}`}
+                                                                checked={true}
+                                                                onCheckedChange={() => toggleHostnameFilter(hostname)}
+                                                            />
+                                                            <label
+                                                                htmlFor={`hostname-${hostname}`}
+                                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                                            >
+                                                                {hostname}
+                                                            </label>
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                                {hostnameFilters.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {hostnameFilters.map((hostname) => (
+                                            <span
+                                                key={hostname}
+                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
+                                            >
+                                                {hostname}
+                                                <button
+                                                    onClick={() => toggleHostnameFilter(hostname)}
+                                                    className="hover:text-brand/70"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Log Level Multi-Select */}
                             <div className="w-[200px]">
                                 <Label className="mb-2 block">Log Level</Label>
@@ -1967,7 +2066,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                                     {isRefreshing ? 'Reloading...' : 'Reload Logs'}
                                 </Button>
-                                {(levelFilters.length > 0 || environmentFilters.length > 0 || searchQuery || timeRange) && (
+                                {(levelFilters.length > 0 || environmentFilters.length > 0 || hostnameFilters.length > 0 || searchQuery || timeRange) && (
                                     <Button
                                         variant="outline"
                                         onClick={clearFilters}
@@ -2029,7 +2128,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                                                         <PaginationEllipsis />
                                                     </PaginationItem>
                                                 ) : (
-                                                    <PaginationItem key={pageNum}>
+                                                    <PaginationItem key={`page-${pageNum}-${idx}`}>
                                                         <PaginationLink
                                                             to={buildPaginationUrl(pageNum as number)}
                                                             isActive={pageNum === pagination.page}
@@ -2086,7 +2185,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                                                         <PaginationEllipsis />
                                                     </PaginationItem>
                                                 ) : (
-                                                    <PaginationItem key={pageNum}>
+                                                    <PaginationItem key={`page-${pageNum}-${idx}`}>
                                                         <PaginationLink
                                                             to={buildPaginationUrl(pageNum as number)}
                                                             isActive={pageNum === pagination.page}
@@ -2590,6 +2689,11 @@ function LogCard({ log, onAddAlarm, canCreateAlarm }: { log: Log; onAddAlarm: (l
                         <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
                             {log.environment}
                         </span>
+                        {log.hostname && (
+                            <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
+                                {log.hostname}
+                            </span>
+                        )}
                         <span className="text-xs text-neutral">
                             {moment(log.timestampMS).format("MMM D, YYYY h:mm:ss A")}
                         </span>
@@ -2656,18 +2760,6 @@ function LogCard({ log, onAddAlarm, canCreateAlarm }: { log: Log; onAddAlarm: (l
                             </div>
                         </div>
                     )}
-
-                    {/* Metadata */}
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                            <span className="text-neutral">Log ID:</span>
-                            <p className="text-primary-dark font-mono mt-1">{log._id}</p>
-                        </div>
-                        <div>
-                            <span className="text-neutral">Project ID:</span>
-                            <p className="text-primary-dark font-mono mt-1">{log.projectId}</p>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>

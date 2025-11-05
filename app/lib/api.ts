@@ -320,6 +320,7 @@ export interface Log {
     _id?: string;
     level: string;
     environment: string;
+    hostname?: string;
     projectId: string;
     projectObjectId: string;
     message: string;
@@ -351,12 +352,14 @@ export interface SearchLogsRequest {
     pageSize?: number;
     level?: string | string[];
     environment?: string | string[];
+    hostname?: string | string[];
     message?: MessageFilter;
     stackTrace?: MessageFilter;
     details?: MessageFilter;
     docFilter?: DocFilter;
     startTime?: number;
     endTime?: number;
+    logType?: string;
 }
 
 export interface SearchLogsResponse {
@@ -426,10 +429,10 @@ export async function createAlarm(token: string, projectId: string, alarmData: O
  * If no alarmId is provided, deletes all alarms for the project
  */
 export async function deleteProjectAlarm(token: string, projectId: string, alarmId?: string): Promise<void> {
-    const endpoint = alarmId 
+    const endpoint = alarmId
         ? `/v1/projects/${projectId}/alarms/${alarmId}`
         : `/v1/projects/${projectId}/alarms`;
-    
+
     const response = await authenticatedFetch(endpoint, {
         method: 'DELETE',
         token,
