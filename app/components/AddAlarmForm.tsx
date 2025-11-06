@@ -13,7 +13,7 @@ interface AddAlarmFormProps {
     initialLevel: string;
     initialEnvironment: string;
     userEmail?: string;
-    editingAlarm?: Alarm | null; // If provided, we're in edit mode
+    editingAlarm?: Alarm | null;
     onSubmit: (data: Alarm) => void;
     onCancel: () => void;
 }
@@ -33,7 +33,7 @@ export function AddAlarmForm({
     const isEditMode = !!editingAlarm;
 
     // Initialize form state based on edit mode or defaults
-    const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'Application Log');
+    const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'application');
     const [message, setMessage] = useState(isEditMode ? editingAlarm.message : initialMessage);
     const [level, setLevel] = useState(isEditMode ? editingAlarm.level.toUpperCase() : initialLevel.toUpperCase());
     const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);
@@ -204,7 +204,7 @@ export function AddAlarmForm({
         <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error Display */}
             {errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md text-sm">
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm">
                     <ul className="list-disc list-inside space-y-1">
                         {errors.map((error, index) => (
                             <li key={index}>{error}</li>
@@ -219,10 +219,10 @@ export function AddAlarmForm({
                     value={logType}
                     onChange={(e) => setLogType(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
+                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
                 >
-                    <option value="Application Log">Application Log</option>
-                    <option value="System Log">System Log</option>
+                    <option value="application">Application Log</option>
+                    <option value="system">System Log</option>
                 </select>
                 <p className="text-xs text-neutral mt-1">
                     Choose which type of logs this alarm should monitor.
@@ -250,7 +250,7 @@ export function AddAlarmForm({
                     value={level}
                     onChange={(e) => setLevel(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
+                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
                 >
                     <option value="INFO">INFO</option>
                     <option value="DEBUG">DEBUG</option>
@@ -278,7 +278,7 @@ export function AddAlarmForm({
             </div>
 
             {/* Delivery Methods */}
-            <div className="border-t border-gray-200 pt-4">
+            <div className="border-t border-border pt-4">
                 <Label className="font-medium text-primary-dark mb-2 block">Delivery Methods *</Label>
                 <p className="text-xs text-neutral mt-1 mb-4">
                     Choose at least one way to receive alarm notifications.
@@ -385,7 +385,7 @@ export function AddAlarmForm({
                     </div>
 
                     {!hasValidDeliveryMethod && (enableEmail || enableSlack || enableWebhook) && (
-                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-2 rounded-md text-xs">
+                        <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 px-3 py-2 rounded-md text-xs">
                             Please fill in the required information for your selected delivery methods.
                         </div>
                     )}
