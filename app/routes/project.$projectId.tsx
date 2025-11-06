@@ -1,6 +1,6 @@
 import type { Route } from "./+types/project.$projectId";
 import { getAuthToken } from "~/lib/auth.server";
-import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, searchLogs, fetchProjectAlarms, createAlarm, deleteProjectAlarm, updateProjectAlarm, type Project, type Log, type SearchLogsRequest, type SearchLogsResponse, type Alarm, type AlarmsResponse } from "~/lib/api";
+import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, searchLogs, fetchProjectAlarms, createAlarm, deleteProjectAlarm, updateProjectAlarm, fetchEnvironments, type Project, type Log, type SearchLogsRequest, type SearchLogsResponse, type Alarm, type AlarmsResponse, type EnvironmentOption } from "~/lib/api";
 import { useLoaderData, Link, Form, useActionData, useNavigate, useSearchParams } from "react-router";
 import { DashboardHeader } from "~/components/DashboardHeader";
 import { Button } from "~/components/ui/button";
@@ -1436,7 +1436,7 @@ function LogsTab({
             )}
 
             {logsSubTab === "alarms" && (
-                <AlarmsTab project={project} canDeleteAlarm={canDeleteAlarm} canUpdateAlarm={canUpdateAlarm} />
+                <AlarmsTab project={project} canCreateAlarm={canCreateAlarm} canDeleteAlarm={canDeleteAlarm} canUpdateAlarm={canUpdateAlarm} userEmail={userEmail} />
             )}
         </div>
     );
@@ -1464,6 +1464,8 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
     const [selectedLogForAlarm, setSelectedLogForAlarm] = useState<Log | null>(null);
     const [showAlarmSuccessModal, setShowAlarmSuccessModal] = useState(false);
     const [createdAlarmData, setCreatedAlarmData] = useState<Alarm | null>(null);
+    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
+    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
 
     // Get filters from URL params (support arrays)
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
@@ -1474,6 +1476,19 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
     const timeRange = searchParams.get("timeRange") || "";
     const customStartTime = searchParams.get("startTime") || "";
     const customEndTime = searchParams.get("endTime") || "";
+
+    // Function to load environments (called on-demand when dropdown opens)
+    const loadEnvironments = async () => {
+        try {
+            setIsLoadingEnvironments(true);
+            const response = await fetchEnvironments(token, project.projectId, 'application');
+            setAvailableEnvironments(response.environments);
+        } catch (err) {
+            console.error('Failed to fetch environments:', err);
+        } finally {
+            setIsLoadingEnvironments(false);
+        }
+    };
 
     // Sync search input with URL param on mount
     useEffect(() => {
@@ -1871,7 +1886,11 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                             {/* Environment Multi-Select */}
                             <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
                                 <Label className="mb-2 block">Environment</Label>
-                                <Popover>
+                                <Popover onOpenChange={(open) => {
+                                    if (open) {
+                                        loadEnvironments();
+                                    }
+                                }}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className="w-full justify-between">
                                             <span className="truncate">
@@ -1882,37 +1901,39 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
                                             <Filter className="ml-2 h-4 w-4 shrink-0" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[200px] p-3">
+                                    <PopoverContent className="w-[250px] p-3">
                                         <div className="space-y-2">
-                                            <Input
-                                                placeholder="Add environment..."
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && e.currentTarget.value) {
-                                                        toggleEnvironmentFilter(e.currentTarget.value);
-                                                        e.currentTarget.value = '';
-                                                    }
-                                                }}
-                                                className="mb-2"
-                                            />
-                                            {environmentFilters.length > 0 && (
+                                            {isLoadingEnvironments ? (
+                                                <div className="flex items-center justify-center py-4">
+                                                    <Activity className="h-4 w-4 text-neutral animate-spin" />
+                                                </div>
+                                            ) : availableEnvironments.length > 0 ? (
                                                 <>
-                                                    <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
-                                                    {environmentFilters.map((env) => (
-                                                        <div key={env} className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                id={`env-${env}`}
-                                                                checked={true}
-                                                                onCheckedChange={() => toggleEnvironmentFilter(env)}
-                                                            />
-                                                            <label
-                                                                htmlFor={`env-${env}`}
-                                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                                            >
-                                                                {env}
-                                                            </label>
+                                                    {availableEnvironments.map((env) => (
+                                                        <div key={env.value} className="flex items-center justify-between space-x-2">
+                                                            <div className="flex items-center space-x-2 flex-1">
+                                                                <Checkbox
+                                                                    id={`env-${env.value}`}
+                                                                    checked={environmentFilters.includes(env.value)}
+                                                                    onCheckedChange={() => toggleEnvironmentFilter(env.value)}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`env-${env.value}`}
+                                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                                                >
+                                                                    {env.value}
+                                                                </label>
+                                                            </div>
+                                                            <span className="text-xs text-neutral">
+                                                                {env.count.toLocaleString()}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                 </>
+                                            ) : (
+                                                <div className="text-xs text-neutral text-center py-2">
+                                                    No environments found
+                                                </div>
                                             )}
                                         </div>
                                     </PopoverContent>
@@ -2318,7 +2339,7 @@ function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: P
 }
 
 // Alarms Tab
-function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Project; canDeleteAlarm: boolean; canUpdateAlarm: boolean }) {
+function AlarmsTab({ project, canCreateAlarm, canDeleteAlarm, canUpdateAlarm, userEmail }: { project: Project; canCreateAlarm: boolean; canDeleteAlarm: boolean; canUpdateAlarm: boolean; userEmail?: string }) {
     const { token } = useLoaderData<typeof loader>();
     const [alarms, setAlarms] = useState<Alarm[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -2326,6 +2347,7 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
     const [deletingAlarmId, setDeletingAlarmId] = useState<string | null>(null);
     const [isClearingAll, setIsClearingAll] = useState(false);
     const [showUpdateAlarmModal, setShowUpdateAlarmModal] = useState(false);
+    const [showAddAlarmModal, setShowAddAlarmModal] = useState(false);
     const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);
 
     // Fetch alarms when component mounts
@@ -2409,6 +2431,20 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
         }
     };
 
+    // Handle alarm creation submission
+    const handleAlarmCreateSubmit = async (newAlarm: Alarm) => {
+        setShowAddAlarmModal(false);
+
+        // Refetch all alarms to ensure we have the latest data
+        try {
+            const response = await fetchProjectAlarms(token, project.projectId);
+            setAlarms(response.alarms);
+        } catch (err) {
+            console.error('Error refetching alarms after creation:', err);
+            setError(err instanceof Error ? err.message : 'Failed to refresh alarms');
+        }
+    };
+
     if (isLoading) {
         return (
             <Card>
@@ -2445,27 +2481,38 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
                                 Monitor and manage your project alarms. {alarms.length} alarm{alarms.length !== 1 ? 's' : ''} configured.
                             </CardDescription>
                         </div>
-                        {canDeleteAlarm && alarms.length > 0 && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleClearAllAlarms}
-                                disabled={isClearingAll}
-                                className="flex items-center gap-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-                            >
-                                {isClearingAll ? (
-                                    <>
-                                        <Activity className="h-4 w-4 animate-spin" />
-                                        Clearing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Trash2 className="h-4 w-4" />
-                                        Clear All Alarms
-                                    </>
-                                )}
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {canCreateAlarm && (
+                                <Button
+                                    onClick={() => setShowAddAlarmModal(true)}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Bell className="h-4 w-4" />
+                                    Add Alarm
+                                </Button>
+                            )}
+                            {canDeleteAlarm && alarms.length > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearAllAlarms}
+                                    disabled={isClearingAll}
+                                    className="flex items-center gap-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                                >
+                                    {isClearingAll ? (
+                                        <>
+                                            <Activity className="h-4 w-4 animate-spin" />
+                                            Clearing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 className="h-4 w-4" />
+                                            Clear All Alarms
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -2474,7 +2521,7 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
                             <Bell className="h-12 w-12 text-neutral mx-auto mb-4" />
                             <p className="text-neutral">No alarms configured</p>
                             <p className="text-sm text-neutral mt-2">
-                                Create alarms from application logs to get notified when specific events occur
+                                Click "Add Alarm" to create an alarm and get notified when specific events occur
                             </p>
                         </div>
                     ) : (
@@ -2495,6 +2542,30 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
                 </CardContent>
             </Card>
 
+            {/* Add Alarm Modal */}
+            <Dialog open={showAddAlarmModal} onOpenChange={setShowAddAlarmModal}>
+                <DialogContent onClose={() => setShowAddAlarmModal(false)}>
+                    <DialogHeader>
+                        <DialogTitle>Create New Alarm</DialogTitle>
+                        <DialogDescription>
+                            Set up a new alarm to monitor your logs.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogBody>
+                        <AddAlarmForm
+                            projectId={project.projectId}
+                            token={token}
+                            initialMessage=""
+                            initialLevel="ERROR"
+                            initialEnvironment=""
+                            userEmail={userEmail}
+                            onSubmit={handleAlarmCreateSubmit}
+                            onCancel={() => setShowAddAlarmModal(false)}
+                        />
+                    </DialogBody>
+                </DialogContent>
+            </Dialog>
+
             {/* Update Alarm Modal */}
             <Dialog open={showUpdateAlarmModal} onOpenChange={setShowUpdateAlarmModal}>
                 <DialogContent onClose={() => setShowUpdateAlarmModal(false)}>
@@ -2512,6 +2583,7 @@ function AlarmsTab({ project, canDeleteAlarm, canUpdateAlarm }: { project: Proje
                                 initialMessage={editingAlarm?.message || ''}
                                 initialLevel={editingAlarm?.level || 'INFO'}
                                 initialEnvironment={editingAlarm?.environment || ''}
+                                userEmail={userEmail}
                                 editingAlarm={editingAlarm}
                                 onSubmit={handleAlarmUpdateSubmit}
                                 onCancel={() => {

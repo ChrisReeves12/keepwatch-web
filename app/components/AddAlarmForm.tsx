@@ -3,14 +3,14 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Checkbox } from "~/components/ui/checkbox";
-import { createAlarm, updateProjectAlarm, type Alarm } from "~/lib/api";
+import { createAlarm, updateProjectAlarm, fetchEnvironments, type Alarm, type EnvironmentOption } from "~/lib/api";
 import validator from "validator";
 
 interface AddAlarmFormProps {
     projectId: string;
     token: string;
     initialMessage: string;
-    initialLevel: string;
+    initialLevel: string | string[];
     initialEnvironment: string;
     userEmail?: string;
     editingAlarm?: Alarm | null;
@@ -70,6 +70,26 @@ export function AddAlarmForm({
     // Error and loading states
     const [errors, setErrors] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
+    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
+
+    // Function to load environments (called when needed, such as when dropdown opens or logType changes)
+    const loadEnvironments = async () => {
+        try {
+            setIsLoadingEnvironments(true);
+            const response = await fetchEnvironments(token, projectId, logType as 'application' | 'system');
+            setAvailableEnvironments(response.environments);
+        } catch (err) {
+            console.error('Failed to fetch environments:', err);
+        } finally {
+            setIsLoadingEnvironments(false);
+        }
+    };
+
+    // Load environments when logType changes
+    useEffect(() => {
+        loadEnvironments();
+    }, [logType]);
 
     // Sync form state when editingAlarm changes (e.g., when editing a different alarm)
     useEffect(() => {
@@ -323,13 +343,36 @@ export function AddAlarmForm({
 
             <div>
                 <Label htmlFor="alarm-environment" className="mb-2 block">Environment *</Label>
-                <Input
-                    id="alarm-environment"
-                    value={environment}
-                    onChange={(e) => setEnvironment(e.target.value)}
-                    placeholder="Enter environment name..."
-                    required
-                />
+                {isLoadingEnvironments ? (
+                    <div className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground flex items-center gap-2">
+                        <div className="h-4 w-4 border-2 border-neutral border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm text-neutral">Loading environments...</span>
+                    </div>
+                ) : availableEnvironments.length > 0 ? (
+                    <select
+                        id="alarm-environment"
+                        value={environment}
+                        onChange={(e) => setEnvironment(e.target.value)}
+                        onFocus={loadEnvironments}
+                        required
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
+                    >
+                        <option value="">Select an environment...</option>
+                        {availableEnvironments.map((env) => (
+                            <option key={env.value} value={env.value}>
+                                {env.value} ({env.count.toLocaleString()} logs)
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <Input
+                        id="alarm-environment"
+                        value={environment}
+                        onChange={(e) => setEnvironment(e.target.value)}
+                        placeholder="Enter environment name..."
+                        required
+                    />
+                )}
                 <p className="text-xs text-neutral mt-1">
                     The alarm will only apply to this specific environment.
                 </p>

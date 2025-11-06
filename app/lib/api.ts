@@ -462,3 +462,29 @@ export async function updateProjectAlarm(token: string, projectId: string, alarm
     return response.json();
 }
 
+export interface EnvironmentOption {
+    value: string;
+    count: number;
+}
+
+export interface FetchEnvironmentsResponse {
+    environments: EnvironmentOption[];
+}
+
+/**
+ * Fetch available environments for a project and log type
+ */
+export async function fetchEnvironments(token: string, projectId: string, logType: 'application' | 'system'): Promise<FetchEnvironmentsResponse> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}/${logType}/environments`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch environments' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch environments`);
+    }
+
+    return response.json();
+}
+
