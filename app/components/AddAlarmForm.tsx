@@ -41,7 +41,7 @@ export function AddAlarmForm({
     const [levels, setLevels] = useState<string[]>(
         isEditMode
             ? (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())
-            : [initialLevel.toUpperCase()]
+            : (Array.isArray(initialLevel) ? initialLevel : [initialLevel]).map(l => l.toUpperCase())
     );
     const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);
 
@@ -343,21 +343,16 @@ export function AddAlarmForm({
 
             <div>
                 <Label htmlFor="alarm-environment" className="mb-2 block">Environment *</Label>
-                {isLoadingEnvironments ? (
-                    <div className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground flex items-center gap-2">
-                        <div className="h-4 w-4 border-2 border-neutral border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-sm text-neutral">Loading environments...</span>
-                    </div>
-                ) : availableEnvironments.length > 0 ? (
+                {availableEnvironments.length > 0 ? (
                     <select
                         id="alarm-environment"
                         value={environment}
                         onChange={(e) => setEnvironment(e.target.value)}
-                        onFocus={loadEnvironments}
+                        disabled={isLoadingEnvironments}
                         required
-                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <option value="">Select an environment...</option>
+                        <option value="">{isLoadingEnvironments ? "Loading environments..." : "Select an environment..."}</option>
                         {availableEnvironments.map((env) => (
                             <option key={env.value} value={env.value}>
                                 {env.value} ({env.count.toLocaleString()} logs)
@@ -369,7 +364,8 @@ export function AddAlarmForm({
                         id="alarm-environment"
                         value={environment}
                         onChange={(e) => setEnvironment(e.target.value)}
-                        placeholder="Enter environment name..."
+                        placeholder={isLoadingEnvironments ? "Loading environments..." : "Enter environment name..."}
+                        disabled={isLoadingEnvironments}
                         required
                     />
                 )}
