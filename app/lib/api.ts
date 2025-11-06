@@ -49,7 +49,7 @@ export interface Alarm {
     id: string;
     _id?: string;
     logType: string;
-    message: string;
+    message: string | null;
     level: string | string[];
     environment: string;
     deliveryMethods: {

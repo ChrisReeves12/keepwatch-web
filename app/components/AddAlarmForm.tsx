@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -34,7 +34,10 @@ export function AddAlarmForm({
 
     // Initialize form state based on edit mode or defaults
     const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'application');
-    const [message, setMessage] = useState(isEditMode ? editingAlarm.message : initialMessage);
+    const [messageMatchAll, setMessageMatchAll] = useState(isEditMode ? !editingAlarm.message : false);
+    const [message, setMessage] = useState(
+        isEditMode && editingAlarm.message ? editingAlarm.message : initialMessage
+    );
     const [levels, setLevels] = useState<string[]>(
         isEditMode
             ? (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())
@@ -68,6 +71,25 @@ export function AddAlarmForm({
     const [errors, setErrors] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Sync form state when editingAlarm changes (e.g., when editing a different alarm)
+    useEffect(() => {
+        if (isEditMode && editingAlarm) {
+            setLogType(editingAlarm.logType);
+            setMessageMatchAll(!editingAlarm.message);
+            setMessage(editingAlarm.message ? editingAlarm.message : initialMessage);
+            setLevels(
+                (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())
+            );
+            setEnvironment(editingAlarm.environment);
+            setEmailAddresses(editingAlarm.deliveryMethods?.email?.addresses || [userEmail || '']);
+            setEnableEmail(!!editingAlarm.deliveryMethods?.email);
+            setSlackWebhook(editingAlarm.deliveryMethods?.slack?.webhook || '');
+            setEnableSlack(!!editingAlarm.deliveryMethods?.slack);
+            setWebhookUrl(editingAlarm.deliveryMethods?.webhook?.url || '');
+            setEnableWebhook(!!editingAlarm.deliveryMethods?.webhook);
+        }
+    }, [editingAlarm, isEditMode, initialMessage, userEmail]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrors([]);
@@ -83,8 +105,8 @@ export function AddAlarmForm({
             // Validation
             const validationErrors: string[] = [];
 
-            if (!trimmedMessage) {
-                validationErrors.push("Message pattern is required");
+            if (!messageMatchAll && !trimmedMessage) {
+                validationErrors.push("Message pattern is required (or select 'Match all messages')");
             }
 
             if (levels.length === 0) {
@@ -144,7 +166,7 @@ export function AddAlarmForm({
             // Build the alarm data payload
             const alarmPayload = {
                 logType,
-                message: trimmedMessage,
+                message: messageMatchAll ? null : trimmedMessage,
                 level: levels,
                 environment: trimmedEnvironment,
                 deliveryMethods: {} as any
@@ -247,17 +269,35 @@ export function AddAlarmForm({
             </div>
 
             <div>
-                <Label htmlFor="alarm-message" className="mb-2 block">Message Pattern *</Label>
-                <Input
-                    id="alarm-message"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Enter message pattern..."
-                    required
-                />
-                <p className="text-xs text-neutral mt-1">
-                    The alarm will trigger when logs contain this message pattern.
-                </p>
+                <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id="match-all-messages"
+                            checked={messageMatchAll}
+                            onCheckedChange={(checked) => setMessageMatchAll(checked === true)}
+                        />
+                        <Label htmlFor="match-all-messages" className="cursor-pointer">Match all messages</Label>
+                    </div>
+                    <p className="text-xs text-neutral ml-6">
+                        When enabled, this alarm will trigger on any message matching the log level and environment.
+                    </p>
+                </div>
+
+                {!messageMatchAll && (
+                    <div className="mt-3">
+                        <Label htmlFor="alarm-message" className="mb-2 block">Message Pattern *</Label>
+                        <Input
+                            id="alarm-message"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="Enter message pattern..."
+                            required
+                        />
+                        <p className="text-xs text-neutral mt-1">
+                            The alarm will trigger when logs contain this message pattern.
+                        </p>
+                    </div>
+                )}
             </div>
 
             <div>
@@ -416,7 +456,13 @@ export function AddAlarmForm({
                 </Button>
                 <Button
                     type="submit"
-                    disabled={!message.trim() || levels.length === 0 || !environment.trim() || !hasValidDeliveryMethod || isSubmitting}
+                    disabled={
+                        (messageMatchAll ? false : !message.trim()) ||
+                        levels.length === 0 ||
+                        !environment.trim() ||
+                        !hasValidDeliveryMethod ||
+                        isSubmitting
+                    }
                 >
                     {isSubmitting
                         ? (isEditMode ? "Updating Alarm..." : "Creating Alarm...")

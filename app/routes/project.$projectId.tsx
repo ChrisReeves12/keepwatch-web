@@ -2578,7 +2578,9 @@ function AlarmCard({ alarm, canDelete, canUpdate, onDelete, onUpdate, isDeleting
                             {alarm.logType}
                         </span>
                     </div>
-                    <p className="text-sm text-primary-dark font-medium">{alarm.message}</p>
+                    <p className="text-sm text-primary-dark font-medium">
+                        {!alarm.message ? <span className="italic text-neutral">Match all messages</span> : alarm.message}
+                    </p>
                 </div>
             </button>
 
