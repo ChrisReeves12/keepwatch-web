@@ -35,7 +35,11 @@ export function AddAlarmForm({
     // Initialize form state based on edit mode or defaults
     const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'application');
     const [message, setMessage] = useState(isEditMode ? editingAlarm.message : initialMessage);
-    const [level, setLevel] = useState(isEditMode ? editingAlarm.level.toUpperCase() : initialLevel.toUpperCase());
+    const [levels, setLevels] = useState<string[]>(
+        isEditMode
+            ? (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())
+            : [initialLevel.toUpperCase()]
+    );
     const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);
 
     // Delivery method states - initialize based on edit mode
@@ -81,6 +85,10 @@ export function AddAlarmForm({
 
             if (!trimmedMessage) {
                 validationErrors.push("Message pattern is required");
+            }
+
+            if (levels.length === 0) {
+                validationErrors.push("At least one log level is required");
             }
 
             if (!trimmedEnvironment) {
@@ -137,7 +145,7 @@ export function AddAlarmForm({
             const alarmPayload = {
                 logType,
                 message: trimmedMessage,
-                level,
+                level: levels,
                 environment: trimmedEnvironment,
                 deliveryMethods: {} as any
             };
@@ -175,6 +183,15 @@ export function AddAlarmForm({
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    // Helper functions for log level management
+    const toggleLogLevel = (level: string) => {
+        setLevels(prevLevels =>
+            prevLevels.includes(level)
+                ? prevLevels.filter(l => l !== level)
+                : [...prevLevels, level]
+        );
     };
 
     // Helper functions for email management
@@ -244,22 +261,23 @@ export function AddAlarmForm({
             </div>
 
             <div>
-                <Label htmlFor="alarm-level" className="mb-2 block">Log Level *</Label>
-                <select
-                    id="alarm-level"
-                    value={level}
-                    onChange={(e) => setLevel(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
-                >
-                    <option value="INFO">INFO</option>
-                    <option value="DEBUG">DEBUG</option>
-                    <option value="WARNING">WARNING</option>
-                    <option value="ERROR">ERROR</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                </select>
-                <p className="text-xs text-neutral mt-1">
-                    The alarm will trigger for logs at this level or higher.
+                <Label className="mb-2 block">Log Levels *</Label>
+                <div className="space-y-2">
+                    {['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].map((level) => (
+                        <div key={level} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`alarm-level-${level}`}
+                                checked={levels.includes(level)}
+                                onCheckedChange={() => toggleLogLevel(level)}
+                            />
+                            <Label htmlFor={`alarm-level-${level}`} className="cursor-pointer font-normal">
+                                {level}
+                            </Label>
+                        </div>
+                    ))}
+                </div>
+                <p className="text-xs text-neutral mt-2">
+                    Select which log levels should trigger this alarm.
                 </p>
             </div>
 
@@ -398,7 +416,7 @@ export function AddAlarmForm({
                 </Button>
                 <Button
                     type="submit"
-                    disabled={!message.trim() || !environment.trim() || !hasValidDeliveryMethod || isSubmitting}
+                    disabled={!message.trim() || levels.length === 0 || !environment.trim() || !hasValidDeliveryMethod || isSubmitting}
                 >
                     {isSubmitting
                         ? (isEditMode ? "Updating Alarm..." : "Creating Alarm...")

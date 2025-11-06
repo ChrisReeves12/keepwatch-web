@@ -1229,9 +1229,22 @@ function SettingsTab({
     );
 }
 
+// Helper function to get the most severe log level from an array
+function getMostSevereLevel(levels: string[]): string {
+    const severityOrder = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'];
+    for (const severity of severityOrder) {
+        if (levels.some(level => level.toUpperCase() === severity)) {
+            return severity;
+        }
+    }
+    return levels[0] || 'INFO';
+}
+
 // Helper function to get log level styling
-function getLogLevelStyle(level: string): { icon: any; color: string; bgColor: string } {
-    const levelUpper = level.toUpperCase();
+function getLogLevelStyle(level: string | string[]): { icon: any; color: string; bgColor: string } {
+    // If level is an array, use the most severe level for styling
+    const levelString = Array.isArray(level) ? getMostSevereLevel(level) : level;
+    const levelUpper = levelString.toUpperCase();
 
     switch (levelUpper) {
         case 'INFO':
@@ -2556,7 +2569,7 @@ function AlarmCard({ alarm, canDelete, canUpdate, onDelete, onUpdate, isDeleting
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${levelStyle.bgColor} ${levelStyle.color}`}>
-                            {alarm.level.toUpperCase()}
+                            {Array.isArray(alarm.level) ? alarm.level.join(', ').toUpperCase() : alarm.level.toUpperCase()}
                         </span>
                         <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
                             {alarm.environment}

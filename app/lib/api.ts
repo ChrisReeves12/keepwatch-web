@@ -50,7 +50,7 @@ export interface Alarm {
     _id?: string;
     logType: string;
     message: string;
-    level: string;
+    level: string | string[];
     environment: string;
     deliveryMethods: {
         email?: {
