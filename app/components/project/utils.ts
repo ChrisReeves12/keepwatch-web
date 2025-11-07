@@ -9,7 +9,7 @@ export function getUserRole(project: Project, userId: string | null): string | n
 }
 
 // Check if user has permission for an action
-export function hasPermission(role: string | null, action: 'delete_project' | 'create_api_key' | 'delete_api_key' | 'update_project' | 'create_alarm' | 'delete_alarm' | 'update_alarm'): boolean {
+export function hasPermission(role: string | null, action: 'delete_project' | 'create_api_key' | 'delete_api_key' | 'update_project' | 'create_alarm' | 'delete_alarm' | 'update_alarm' | 'delete_logs'): boolean {
     if (!role) return false;
 
     switch (action) {
@@ -21,6 +21,7 @@ export function hasPermission(role: string | null, action: 'delete_project' | 'c
         case 'create_alarm':
         case 'delete_alarm':
         case 'update_alarm':
+        case 'delete_logs':
             return role === 'admin' || role === 'editor';
         default:
             return false;

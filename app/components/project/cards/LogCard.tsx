@@ -1,11 +1,31 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Bell } from "lucide-react";
+import { ChevronDown, ChevronRight, Bell, ExternalLink } from "lucide-react";
 import moment from "moment";
+import { Link } from "react-router";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { getLogLevelStyle } from "../utils";
 import type { Log } from "~/lib/api";
 
-export function LogCard({ log, onAddAlarm, canCreateAlarm }: { log: Log; onAddAlarm: (log: Log) => void; canCreateAlarm: boolean }) {
+export function LogCard({ 
+    log, 
+    onAddAlarm, 
+    canCreateAlarm, 
+    projectId,
+    showCheckbox = false,
+    isSelected = false,
+    onSelectionChange,
+    logIndex = 0
+}: { 
+    log: Log; 
+    onAddAlarm: (log: Log) => void; 
+    canCreateAlarm: boolean; 
+    projectId: string;
+    showCheckbox?: boolean;
+    isSelected?: boolean;
+    onSelectionChange?: (logId: string, checked: boolean, index: number, shiftKey: boolean) => void;
+    logIndex?: number;
+}) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const levelStyle = getLogLevelStyle(log.level);
@@ -22,6 +42,31 @@ export function LogCard({ log, onAddAlarm, canCreateAlarm }: { log: Log; onAddAl
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50"
             >
+                {/* Checkbox for selection (if enabled) */}
+                {showCheckbox && onSelectionChange && (
+                    <div 
+                        className="shrink-0 mt-0.5" 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (log._id) {
+                                const shiftKey = e.shiftKey;
+                                const newChecked = !isSelected;
+                                onSelectionChange(log._id, newChecked, logIndex, shiftKey);
+                            }
+                        }}
+                    >
+                        <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                                // This is for keyboard interaction (space bar)
+                                if (log._id) {
+                                    onSelectionChange(log._id, checked as boolean, logIndex, false);
+                                }
+                            }}
+                        />
+                    </div>
+                )}
+
                 {/* Expand/Collapse Icon */}
                 <div className="shrink-0 mt-0.5">
                     {isExpanded ? (
@@ -61,21 +106,33 @@ export function LogCard({ log, onAddAlarm, canCreateAlarm }: { log: Log; onAddAl
                 </div>
             </button>
 
-            {/* Add Alarm Button - appears on hover */}
-            {isHovered && canCreateAlarm && (
-                <div className="absolute top-2 right-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                            e.stopPropagation(); // Prevent expanding the log
-                            onAddAlarm(log);
-                        }}
-                        className="flex items-center gap-1 bg-white shadow-sm hover:bg-gray-50"
-                    >
-                        <Bell className="h-3 w-3" />
-                        Add Alarm
-                    </Button>
+            {/* Action Buttons - appear on hover */}
+            {isHovered && (
+                <div className="absolute top-2 right-2 flex gap-2">
+                    <Link to={`/project/${projectId}/logs/${log._id}`} onClick={(e) => e.stopPropagation()}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex items-center gap-1 bg-white shadow-sm hover:bg-gray-50"
+                        >
+                            <ExternalLink className="h-3 w-3" />
+                            View Details
+                        </Button>
+                    </Link>
+                    {canCreateAlarm && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent expanding the log
+                                onAddAlarm(log);
+                            }}
+                            className="flex items-center gap-1 bg-white shadow-sm hover:bg-gray-50"
+                        >
+                            <Bell className="h-3 w-3" />
+                            Add Alarm
+                        </Button>
+                    )}
                 </div>
             )}
 

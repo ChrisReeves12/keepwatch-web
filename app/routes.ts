@@ -5,4 +5,5 @@ export default [
   route("/login", "routes/login.tsx"),
   route("/logout", "routes/logout.tsx"),
   route("/project/:projectId", "routes/project.$projectId.tsx"),
+  route("/project/:projectId/logs/:logId", "routes/project.$projectId.logs.$logId.tsx"),
 ] satisfies RouteConfig;

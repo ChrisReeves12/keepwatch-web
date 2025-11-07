@@ -10,12 +10,14 @@ export function LogsTab({
     canCreateAlarm,
     canDeleteAlarm,
     canUpdateAlarm,
+    canDeleteLogs,
     userEmail,
 }: {
     project: Project;
     canCreateAlarm: boolean;
     canDeleteAlarm: boolean;
     canUpdateAlarm: boolean;
+    canDeleteLogs: boolean;
     userEmail?: string;
 }) {
     const [searchParams] = useSearchParams();
@@ -80,7 +82,7 @@ export function LogsTab({
             )}
 
             {logsSubTab === "application" && (
-                <ApplicationLogsTab project={project} canCreateAlarm={canCreateAlarm} userEmail={userEmail} />
+                <ApplicationLogsTab project={project} canCreateAlarm={canCreateAlarm} canDeleteLogs={canDeleteLogs} userEmail={userEmail} />
             )}
 
             {logsSubTab === "system" && (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useLoaderData } from "react-router";
-import { FileText, Activity, Filter, RefreshCw, CheckCircle } from "lucide-react";
+import { FileText, Activity, Filter, RefreshCw, CheckCircle, Trash2, CheckSquare, Square, AlertTriangle } from "lucide-react";
 import moment from "moment";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -13,10 +13,10 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { AddAlarmForm } from "~/components/AddAlarmForm";
 import { LogCard } from "../cards/LogCard";
 import { formatNumber, getPageNumbers, getLogLevelStyle } from "../utils";
-import { searchLogs, fetchEnvironments, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption } from "~/lib/api";
+import { searchLogs, fetchEnvironments, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption } from "~/lib/api";
 import type { loader } from "~/routes/project.$projectId";
 
-export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { project: Project; canCreateAlarm: boolean; userEmail?: string }) {
+export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, userEmail }: { project: Project; canCreateAlarm: boolean; canDeleteLogs: boolean; userEmail?: string }) {
     const { token } = useLoaderData<typeof loader>();
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -39,6 +39,13 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
     const [createdAlarmData, setCreatedAlarmData] = useState<Alarm | null>(null);
     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
     const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
+    
+    // Bulk delete state
+    const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
     // Get filters from URL params (support arrays)
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
@@ -67,6 +74,12 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
     useEffect(() => {
         setSearchInput(searchQuery);
     }, [searchQuery]);
+
+    // Clear selections when page or filters change
+    useEffect(() => {
+        setSelectedLogIds(new Set());
+        setLastSelectedIndex(null);
+    }, [currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange]);
 
     // Debounce search input
     useEffect(() => {
@@ -327,6 +340,93 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
         setSearchParams(newParams);
         setShowCustomRange(false);
     };
+
+    // Handle individual log selection
+    const handleLogSelection = (logId: string, checked: boolean, index: number, shiftKey: boolean = false) => {
+        // Handle shift+click for range selection
+        if (shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== index) {
+            const start = Math.min(lastSelectedIndex, index);
+            const end = Math.max(lastSelectedIndex, index);
+            
+            setSelectedLogIds(prev => {
+                const newSet = new Set(prev);
+                // Select all logs in the range
+                for (let i = start; i <= end; i++) {
+                    const log = logs[i];
+                    if (log._id) {
+                        newSet.add(log._id);
+                    }
+                }
+                return newSet;
+            });
+            setLastSelectedIndex(index);
+        } else {
+            // Normal single selection
+            setSelectedLogIds(prev => {
+                const newSet = new Set(prev);
+                if (checked) {
+                    newSet.add(logId);
+                } else {
+                    newSet.delete(logId);
+                }
+                return newSet;
+            });
+            setLastSelectedIndex(index);
+        }
+    };
+
+    // Handle select all on current page
+    const handleSelectAll = () => {
+        const currentPageLogIds = logs.map(log => log._id).filter(id => id) as string[];
+        
+        // Check if all current page logs are selected
+        const allSelected = currentPageLogIds.every(id => selectedLogIds.has(id));
+        
+        if (allSelected) {
+            // Deselect all on current page
+            setSelectedLogIds(prev => {
+                const newSet = new Set(prev);
+                currentPageLogIds.forEach(id => newSet.delete(id));
+                return newSet;
+            });
+        } else {
+            // Select all on current page
+            setSelectedLogIds(prev => {
+                const newSet = new Set(prev);
+                currentPageLogIds.forEach(id => newSet.add(id));
+                return newSet;
+            });
+        }
+    };
+
+    // Handle delete selected logs
+    const handleDeleteSelected = async () => {
+        if (selectedLogIds.size === 0) return;
+
+        setIsDeleting(true);
+        setDeleteError(null);
+
+        try {
+            await deleteLogs(project.projectId, Array.from(selectedLogIds), token);
+            
+            // Clear selections
+            setSelectedLogIds(new Set());
+            setShowDeleteConfirmation(false);
+            
+            // Refresh logs
+            const currentParams = new URLSearchParams(searchParams);
+            currentParams.set('_refresh', Date.now().toString());
+            setSearchParams(currentParams, { replace: true });
+        } catch (err) {
+            setDeleteError(err instanceof Error ? err.message : 'Failed to delete logs');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // Check if all logs on current page are selected
+    const allCurrentPageSelected = logs.length > 0 && logs.every(log => log._id && selectedLogIds.has(log._id));
+    const someCurrentPageSelected = logs.some(log => log._id && selectedLogIds.has(log._id));
 
 
     // Helper to build pagination URL with all current filters
@@ -657,7 +757,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
                                 )}
                             </div>
 
-                            <div className="flex gap-2 mt-6">
+                            <div className="flex gap-2 mt-6 flex-wrap">
                                 <Button
                                     variant="outline"
                                     onClick={() => {
@@ -680,6 +780,40 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
                                     >
                                         Clear All Filters
                                     </Button>
+                                )}
+                                
+                                {/* Bulk delete controls - only show if user has permission */}
+                                {canDeleteLogs && logs.length > 0 && (
+                                    <>
+                                        <div className="flex-1" /> {/* Spacer */}
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleSelectAll}
+                                                className="flex items-center gap-2"
+                                            >
+                                                {allCurrentPageSelected ? (
+                                                    <CheckSquare className="h-4 w-4" />
+                                                ) : (
+                                                    <Square className="h-4 w-4" />
+                                                )}
+                                                {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
+                                            </Button>
+                                            <span className="text-xs text-neutral italic">
+                                                Tip: Hold Shift to select range
+                                            </span>
+                                        </div>
+                                        {selectedLogIds.size > 0 && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setShowDeleteConfirmation(true)}
+                                                className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Delete Selected ({selectedLogIds.size})
+                                            </Button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -759,15 +893,20 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
                             )}
 
                             <div className="space-y-2">
-                                {logs.map((log) => (
+                                {logs.map((log, index) => (
                                     <LogCard
                                         key={log._id}
                                         log={log}
+                                        logIndex={index}
+                                        projectId={project.projectId}
                                         onAddAlarm={(selectedLog) => {
                                             setSelectedLogForAlarm(selectedLog);
                                             setShowAddAlarmModal(true);
                                         }}
                                         canCreateAlarm={canCreateAlarm}
+                                        showCheckbox={canDeleteLogs}
+                                        isSelected={log._id ? selectedLogIds.has(log._id) : false}
+                                        onSelectionChange={handleLogSelection}
                                     />
                                 ))}
                             </div>
@@ -903,6 +1042,66 @@ export function ApplicationLogsTab({ project, canCreateAlarm, userEmail }: { pro
                     <DialogFooter>
                         <Button onClick={() => setShowAlarmSuccessModal(false)}>
                             Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+                <DialogContent onClose={() => {
+                    setShowDeleteConfirmation(false);
+                    setDeleteError(null);
+                }}>
+                    <DialogHeader>
+                        <DialogTitle>Delete Selected Logs</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete {selectedLogIds.size} log{selectedLogIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogBody>
+                        {deleteError && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm mb-4">
+                                {deleteError}
+                            </div>
+                        )}
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                            <div className="flex gap-3">
+                                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-yellow-800">
+                                    <p className="font-medium mb-1">Warning</p>
+                                    <p>Deleting logs is permanent and cannot be undone. Make sure you have backed up any important data before proceeding.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </DialogBody>
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => {
+                                setShowDeleteConfirmation(false);
+                                setDeleteError(null);
+                            }}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            onClick={handleDeleteSelected}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Activity className="h-4 w-4 mr-2 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete {selectedLogIds.size} Log{selectedLogIds.size !== 1 ? 's' : ''}
+                                </>
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

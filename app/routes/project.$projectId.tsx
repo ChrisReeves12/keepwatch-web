@@ -155,6 +155,7 @@ export default function ProjectDetail() {
     const canCreateAlarm = hasPermission(userRole, 'create_alarm');
     const canDeleteAlarm = hasPermission(userRole, 'delete_alarm');
     const canUpdateAlarm = hasPermission(userRole, 'update_alarm');
+    const canDeleteLogs = hasPermission(userRole, 'delete_logs');
     const isAdmin = userRole === 'admin';
 
     // Handle successful API key creation
@@ -301,6 +302,7 @@ export default function ProjectDetail() {
                         canCreateAlarm={canCreateAlarm}
                         canDeleteAlarm={canDeleteAlarm}
                         canUpdateAlarm={canUpdateAlarm}
+                        canDeleteLogs={canDeleteLogs}
                         userEmail={userEmail}
                     />
                 )}

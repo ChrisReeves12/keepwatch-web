@@ -324,12 +324,18 @@ export interface Log {
     projectId: string;
     projectObjectId: string;
     message: string;
+    logType?: string;
     stackTrace: Array<Record<string, any>>;
     rawStackTrace?: string;
     details: Record<string, any>;
     detailString: string | null;
     timestampMS: number;
     createdAt: Date;
+    request?: {
+        url?: string;
+        os?: string;
+        userAgent?: string;
+    };
 }
 
 export interface MessageCondition {
@@ -388,6 +394,39 @@ export async function searchLogs(projectId: string, filters: SearchLogsRequest =
     }
 
     return response.json();
+}
+
+/**
+ * Fetch a single log by ID
+ */
+export async function fetchLog(projectId: string, logId: string, token?: string): Promise<Log> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}/${logId}`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch log');
+    }
+
+    return response.json();
+}
+
+/**
+ * Delete logs by IDs
+ */
+export async function deleteLogs(projectId: string, logIds: string[], token?: string): Promise<void> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}`, {
+        method: 'DELETE',
+        token,
+        body: JSON.stringify({ logIds }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete logs');
+    }
 }
 
 /**
