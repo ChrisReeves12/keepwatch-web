@@ -24,7 +24,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     const [searchInput, setSearchInput] = useState("");
     const [pagination, setPagination] = useState({
         page: 1,
-        pageSize: 50,
+        pageSize: 120,
         total: 0,
         totalPages: 0,
     });
@@ -121,7 +121,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                 // Build filters object
                 const filters: SearchLogsRequest = {
                     page: currentPage,
-                    pageSize: 50,
+                    pageSize: 120,
                     logType: "application",
                 };
 
