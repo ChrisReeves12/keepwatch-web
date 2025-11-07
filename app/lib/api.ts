@@ -25,6 +25,9 @@ export interface Project {
     name: string;
     description: string;
     projectId: string;
+    ownerId: string;
+    ownerName?: string | null;
+    ownerEmail?: string | null;
     users: Array<{
         id: string;
         role: string;

@@ -32,7 +32,8 @@ export function TeamTab({
                     <div className="space-y-3">
                         {project.users.map((user) => {
                             const isCurrentUser = user.id === userId;
-                            const canRemove = canRemoveUsers && !isCurrentUser;
+                            const isOwner = user.id === project.ownerId;
+                            const canRemove = canRemoveUsers && !isCurrentUser && !isOwner;
 
                             return (
                                 <div key={user.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-4">
@@ -41,8 +42,11 @@ export function TeamTab({
                                             <Users className="h-5 w-5 text-white" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-primary-dark flex items-center gap-2">
+                                            <p className="font-medium text-primary-dark flex items-center gap-2 flex-wrap">
                                                 {user.name || `User ${user.id}`}
+                                                {isOwner && (
+                                                    <span className="text-xs px-2 py-0.5 bg-[#FFB30D]/10 text-[#FFB30D] rounded font-semibold">Owner</span>
+                                                )}
                                                 {isCurrentUser && (
                                                     <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">You</span>
                                                 )}
@@ -65,6 +69,11 @@ export function TeamTab({
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
+                                        )}
+                                        {isOwner && !canRemoveUsers && (
+                                            <div className="px-2 py-2 text-xs text-neutral" title="Project owner cannot be removed">
+                                                {/* Spacer to maintain alignment */}
+                                            </div>
                                         )}
                                     </div>
                                 </div>

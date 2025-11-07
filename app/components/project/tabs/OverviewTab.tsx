@@ -97,6 +97,20 @@ export function OverviewTab({
                         <p className="text-primary-dark mt-1">{project.description}</p>
                     </div>
                     <div>
+                        <label className="text-sm font-medium text-neutral">Owner</label>
+                        <div className="mt-1">
+                            {project.ownerName && (
+                                <p className="text-primary-dark font-medium">{project.ownerName}</p>
+                            )}
+                            {project.ownerEmail && (
+                                <p className="text-sm text-neutral">{project.ownerEmail}</p>
+                            )}
+                            {!project.ownerName && !project.ownerEmail && (
+                                <p className="text-neutral text-sm">Owner information unavailable</p>
+                            )}
+                        </div>
+                    </div>
+                    <div>
                         <label className="text-sm font-medium text-neutral">Project ID</label>
                         <div className="flex items-center gap-2 mt-1">
                             <code className="flex-1 text-sm bg-gray-100 px-3 py-2 rounded font-mono text-primary-dark">
