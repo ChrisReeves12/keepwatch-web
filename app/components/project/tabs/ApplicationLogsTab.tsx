@@ -39,7 +39,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     const [createdAlarmData, setCreatedAlarmData] = useState<Alarm | null>(null);
     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
     const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
-    
+
     // Bulk delete state
     const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -56,6 +56,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     const timeRange = searchParams.get("timeRange") || "";
     const customStartTime = searchParams.get("startTime") || "";
     const customEndTime = searchParams.get("endTime") || "";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as 'desc' | 'asc';
 
     // Function to load environments (called on-demand when dropdown opens)
     const loadEnvironments = async () => {
@@ -79,7 +80,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     useEffect(() => {
         setSelectedLogIds(new Set());
         setLastSelectedIndex(null);
-    }, [currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange]);
+    }, [currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, sortOrder]);
 
     // Debounce search input
     useEffect(() => {
@@ -123,6 +124,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                     page: currentPage,
                     pageSize: 120,
                     logType: "application",
+                    sortOrder: sortOrder,
                 };
 
                 // Add level filters if selected (send as array if multiple, string if single)
@@ -218,7 +220,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, token, searchParams.get('_refresh')]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, sortOrder, token, searchParams.get('_refresh')]);
 
     // Handle filter changes for multi-select
     const toggleLevelFilter = (level: string) => {
@@ -327,6 +329,13 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         setSearchParams(newParams);
     };
 
+    const handleSortOrderChange = (order: 'desc' | 'asc') => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set("sortOrder", order);
+        newParams.set("page", "1"); // Reset to page 1 when sort order changes
+        setSearchParams(newParams);
+    };
+
     const clearFilters = () => {
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("level");
@@ -336,6 +345,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         newParams.delete("timeRange");
         newParams.delete("startTime");
         newParams.delete("endTime");
+        newParams.set("sortOrder", "desc"); // Reset to default sort order
         newParams.set("page", "1");
         setSearchParams(newParams);
         setShowCustomRange(false);
@@ -347,7 +357,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         if (shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== index) {
             const start = Math.min(lastSelectedIndex, index);
             const end = Math.max(lastSelectedIndex, index);
-            
+
             setSelectedLogIds(prev => {
                 const newSet = new Set(prev);
                 // Select all logs in the range
@@ -378,10 +388,10 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     // Handle select all on current page
     const handleSelectAll = () => {
         const currentPageLogIds = logs.map(log => log._id).filter(id => id) as string[];
-        
+
         // Check if all current page logs are selected
         const allSelected = currentPageLogIds.every(id => selectedLogIds.has(id));
-        
+
         if (allSelected) {
             // Deselect all on current page
             setSelectedLogIds(prev => {
@@ -408,11 +418,11 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
 
         try {
             await deleteLogs(project.projectId, Array.from(selectedLogIds), token);
-            
+
             // Clear selections
             setSelectedLogIds(new Set());
             setShowDeleteConfirmation(false);
-            
+
             // Refresh logs
             const currentParams = new URLSearchParams(searchParams);
             currentParams.set('_refresh', Date.now().toString());
@@ -495,7 +505,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
 
                         {/* Time Range Filter */}
                         <div className="flex flex-wrap items-start gap-4">
-                            <div className="w-[200px]">
+                            <div className="w-[155px]">
                                 <Label htmlFor="time-range" className="mb-2 block">Time Range</Label>
                                 <select
                                     id="time-range"
@@ -520,6 +530,20 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                     <option value="12h">Last 12 hours</option>
                                     <option value="1d">Last 24 hours</option>
                                     <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+
+                            {/* Sort Order Filter */}
+                            <div className="w-[220px]">
+                                <Label htmlFor="sort-order" className="mb-2 block">Sort Order</Label>
+                                <select
+                                    id="sort-order"
+                                    value={sortOrder}
+                                    onChange={(e) => handleSortOrderChange(e.target.value as 'desc' | 'asc')}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent text-sm bg-white"
+                                >
+                                    <option value="desc">Descending (Newest First)</option>
+                                    <option value="asc">Ascending (Oldest First)</option>
                                 </select>
                             </div>
 
@@ -773,7 +797,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                                     {isRefreshing ? 'Reloading...' : 'Reload Logs'}
                                 </Button>
-                                {(levelFilters.length > 0 || environmentFilters.length > 0 || hostnameFilters.length > 0 || searchQuery || timeRange) && (
+                                {(levelFilters.length > 0 || environmentFilters.length > 0 || hostnameFilters.length > 0 || searchQuery || timeRange || sortOrder !== 'desc') && (
                                     <Button
                                         variant="outline"
                                         onClick={clearFilters}
@@ -781,7 +805,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                         Clear All Filters
                                     </Button>
                                 )}
-                                
+
                                 {/* Bulk delete controls - only show if user has permission */}
                                 {canDeleteLogs && logs.length > 0 && (
                                     <>
@@ -1076,8 +1100,8 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                         </div>
                     </DialogBody>
                     <DialogFooter>
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             onClick={() => {
                                 setShowDeleteConfirmation(false);
                                 setDeleteError(null);
@@ -1086,7 +1110,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             onClick={handleDeleteSelected}
                             disabled={isDeleting}
                             className="bg-red-600 hover:bg-red-700 text-white"

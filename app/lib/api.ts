@@ -366,6 +366,7 @@ export interface SearchLogsRequest {
     startTime?: number;
     endTime?: number;
     logType?: string;
+    sortOrder?: 'desc' | 'asc';
 }
 
 export interface SearchLogsResponse {
