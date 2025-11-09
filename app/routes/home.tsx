@@ -405,9 +405,11 @@ function GuestLandingPage() {
                   Sign In
                 </Button>
               </Link>
-              <Button className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
-                Get Started
-              </Button>
+              <Link to="/signup">
+                <Button className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
+                  Get Started
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -427,9 +429,11 @@ function GuestLandingPage() {
               Stay ahead of issues before they impact your users.
             </p>
             <div className="flex items-center justify-center gap-4">
-              <Button size="lg" className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
-                Start Free Trial
-              </Button>
+              <Link to="/signup">
+                <Button size="lg" className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
+                  Start Free Trial
+                </Button>
+              </Link>
               <Link to="/login">
                 <Button size="lg" variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20">
                   Sign In
@@ -480,9 +484,11 @@ function GuestLandingPage() {
                 Join thousands of developers who trust KeepWatch to monitor their applications.
                 No credit card required.
               </p>
-              <Button size="lg" className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
-                Create Your Free Account
-              </Button>
+              <Link to="/signup">
+                <Button size="lg" className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white">
+                  Create Your Free Account
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

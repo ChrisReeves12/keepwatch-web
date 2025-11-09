@@ -1,19 +1,18 @@
-import type { Route } from "./+types/login";
+import type { Route } from "./+types/signup";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 import { useState } from "react";
-import { Form, redirect, useActionData, Link, useSearchParams } from "react-router";
-import { authenticate } from "~/lib/api";
-import { setAuthCookies, getAuthToken } from "~/lib/auth.server";
-import { CheckCircle } from "lucide-react";
+import { Form, redirect, useActionData, Link } from "react-router";
+import { registerUser } from "~/lib/api";
+import { getAuthToken } from "~/lib/auth.server";
 
-export function meta({ }: Route.MetaArgs) {
+export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Login - KeepWatch" },
-    { name: "description", content: "Sign in to your KeepWatch account" },
+    { title: "Sign Up - KeepWatch" },
+    { name: "description", content: "Create your KeepWatch account" },
   ];
 }
 
@@ -28,20 +27,31 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
+  const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+  const company = formData.get("company") as string;
+
+  // Validate passwords match
+  if (password !== confirmPassword) {
+    return {
+      error: "Passwords do not match",
+    };
+  }
+
+  // Validate password length
+  if (password.length < 8) {
+    return {
+      error: "Password must be at least 8 characters long",
+    };
+  }
 
   try {
-    const response = await authenticate(email, password);
+    await registerUser({ name, email, password, company });
 
-    // Set the auth cookies and redirect (use userId, not _id)
-    const cookies = await setAuthCookies(response.token, response.user.userId);
-    return redirect("/", {
-      headers: [
-        ["Set-Cookie", cookies[0]],
-        ["Set-Cookie", cookies[1]],
-      ],
-    });
+    // Redirect to login page with success message
+    return redirect("/login?registered=true");
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -49,11 +59,10 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
-export default function Login() {
+export default function Signup() {
   const actionData = useActionData<typeof action>();
   const [showPassword, setShowPassword] = useState(false);
-  const [searchParams] = useSearchParams();
-  const registered = searchParams.get("registered") === "true";
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-primary-dark via-[#002865] to-brand p-4">
@@ -68,28 +77,17 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Login Card */}
+        {/* Signup Card */}
         <Card className="shadow-xl border-brand/20 bg-white">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-brand">Welcome back</CardTitle>
+            <CardTitle className="text-2xl font-bold text-brand">Create an account</CardTitle>
             <CardDescription className="text-neutral">
-              Enter your credentials to access your account
+              Get started with KeepWatch for free
             </CardDescription>
           </CardHeader>
           <Form method="post">
             <CardContent className="space-y-4">
-              {/* Success Message for New Registration */}
-              {registered && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5" />
-                  <div>
-                    <p className="font-semibold">Account created successfully!</p>
-                    <p>Please sign in with your credentials.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Google Sign In Button */}
+              {/* Google Sign Up Button */}
               <Button
                 variant="outline"
                 className="w-full"
@@ -113,7 +111,7 @@ export default function Login() {
                     fill="#EA4335"
                   />
                 </svg>
-                Sign in with Google
+                Sign up with Google
               </Button>
 
               {/* Divider */}
@@ -135,6 +133,19 @@ export default function Login() {
                 </div>
               )}
 
+              {/* Name Input */}
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-primary-dark">Full Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="John Doe"
+                  required
+                  className="border-neutral/30 focus-visible:ring-brand text-black"
+                />
+              </div>
+
               {/* Email Input */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-primary-dark">Email</Label>
@@ -143,6 +154,19 @@ export default function Login() {
                   name="email"
                   type="email"
                   placeholder="name@example.com"
+                  required
+                  className="border-neutral/30 focus-visible:ring-brand text-black"
+                />
+              </div>
+
+              {/* Company Input */}
+              <div className="space-y-2">
+                <Label htmlFor="company" className="text-primary-dark">Company</Label>
+                <Input
+                  id="company"
+                  name="company"
+                  type="text"
+                  placeholder="Acme Corp"
                   required
                   className="border-neutral/30 focus-visible:ring-brand text-black"
                 />
@@ -158,6 +182,7 @@ export default function Login() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     required
+                    minLength={8}
                     className="pr-10 border-neutral/30 focus-visible:ring-brand text-black"
                   />
                   <button
@@ -172,36 +197,54 @@ export default function Login() {
                     )}
                   </button>
                 </div>
+                <p className="text-xs text-neutral">Must be at least 8 characters</p>
               </div>
 
-              {/* Forgot Password Link */}
-              <div className="flex justify-end">
-                <a
-                  href="#"
-                  className="text-sm text-brand hover:text-accent underline-offset-4 hover:underline transition-colors"
-                >
-                  Forgot password?
-                </a>
+              {/* Confirm Password Input */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-primary-dark">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    className="pr-10 border-neutral/30 focus-visible:ring-brand text-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-brand transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <AiOutlineEyeInvisible className="h-4 w-4" />
+                    ) : (
+                      <AiOutlineEye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Sign In Button */}
+              {/* Sign Up Button */}
               <Button
                 type="submit"
                 className="w-full bg-brand hover:bg-brand/90 text-white"
                 size="lg"
               >
-                Sign In
+                Create Account
               </Button>
             </CardContent>
           </Form>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-neutral">
-              Don't have an account?{" "}
+              Already have an account?{" "}
               <Link
-                to="/signup"
+                to="/login"
                 className="font-medium text-brand hover:text-accent underline-offset-4 hover:underline transition-colors"
               >
-                Sign up
+                Sign in
               </Link>
             </p>
           </CardFooter>
@@ -209,7 +252,7 @@ export default function Login() {
 
         {/* Footer */}
         <p className="text-center text-xs text-white/70 mt-8">
-          By signing in, you agree to our{" "}
+          By signing up, you agree to our{" "}
           <a href="#" className="text-white/90 underline-offset-4 hover:underline hover:text-accent transition-colors">
             Terms of Service
           </a>{" "}

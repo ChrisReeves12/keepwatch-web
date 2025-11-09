@@ -96,6 +96,39 @@ export async function authenticate(email: string, password: string): Promise<Aut
     return data as AuthResponse;
 }
 
+export interface RegisterUserRequest {
+    name: string;
+    email: string;
+    password: string;
+    company: string;
+}
+
+export interface RegisterUserResponse {
+    message: string;
+    user: User;
+}
+
+/**
+ * Register a new user
+ */
+export async function registerUser(data: RegisterUserRequest): Promise<RegisterUserResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/users`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+        throw new Error(responseData.error || 'Registration failed');
+    }
+
+    return responseData as RegisterUserResponse;
+}
+
 /**
  * Make an authenticated API request
  * When called from the server, pass the token from getAuthToken(request)
