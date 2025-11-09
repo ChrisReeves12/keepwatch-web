@@ -643,7 +643,7 @@ export async function requestAccountDeletion(token: string): Promise<RequestAcco
 }
 
 export interface VerifyAccountDeletionRequest {
-    verificationCode: string;
+    code: string;
 }
 
 export interface VerifyAccountDeletionResponse {
@@ -654,8 +654,8 @@ export interface VerifyAccountDeletionResponse {
  * Verify the code and delete the account
  */
 export async function verifyAccountDeletion(token: string, data: VerifyAccountDeletionRequest): Promise<VerifyAccountDeletionResponse> {
-    const response = await authenticatedFetch('/v1/users/me/delete/verify', {
-        method: 'POST',
+    const response = await authenticatedFetch('/v1/users/me', {
+        method: 'DELETE',
         token,
         body: JSON.stringify(data),
     });

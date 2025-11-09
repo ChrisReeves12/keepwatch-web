@@ -78,8 +78,8 @@ export async function action({ request }: Route.ActionArgs) {
       }
 
       case "verifyAccountDeletion": {
-        const verificationCode = formData.get("verificationCode") as string;
-        await verifyAccountDeletion(token, { verificationCode });
+        const code = formData.get("code") as string;
+        await verifyAccountDeletion(token, { code });
         
         // Clear cookies and redirect to login
         const cookies = clearAuthCookies();
@@ -655,10 +655,10 @@ function DeleteAccountDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="verificationCode">Verification Code</Label>
+                  <Label htmlFor="code">Verification Code</Label>
                   <Input
-                    id="verificationCode"
-                    name="verificationCode"
+                    id="code"
+                    name="code"
                     type="text"
                     placeholder="Enter 6-digit code"
                     maxLength={6}
