@@ -1,5 +1,5 @@
-import { Form } from "react-router";
-import { User, Settings, Lock, LogOut, ChevronDown } from "lucide-react";
+import { Form, Link } from "react-router";
+import { User, Settings, LogOut, ChevronDown, CreditCard } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 export function DashboardHeader() {
@@ -58,29 +58,25 @@ function UserMenu() {
           <div className="px-4 py-3 border-b border-gray-200">
             <p className="text-sm font-medium text-primary-dark">My Account</p>
           </div>
-          
+
           <div className="py-1">
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                // TODO: Navigate to account settings
-              }}
+            <Link
+              to="/account/settings"
+              onClick={() => setIsOpen(false)}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Settings className="h-4 w-4 text-neutral" />
               Account Settings
-            </button>
-            
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                // TODO: Navigate to security settings
-              }}
+            </Link>
+
+            <Link
+              to="/account/billing"
+              onClick={() => setIsOpen(false)}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Lock className="h-4 w-4 text-neutral" />
-              Security Settings
-            </button>
+              <CreditCard className="h-4 w-4 text-neutral" />
+              Billing Settings
+            </Link>
           </div>
 
           <div className="border-t border-gray-200 pt-1">

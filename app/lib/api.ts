@@ -531,3 +531,140 @@ export async function fetchEnvironments(token: string, projectId: string, logTyp
     return response.json();
 }
 
+/**
+ * Account Management API Functions
+ */
+
+export interface UpdateUserRequest {
+    name?: string;
+    company?: string;
+}
+
+export interface UpdateUserResponse {
+    message: string;
+    user: User;
+}
+
+/**
+ * Update current user's information
+ */
+export async function updateUser(token: string, data: UpdateUserRequest): Promise<User> {
+    const response = await authenticatedFetch('/v1/users/me', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update user information');
+    }
+
+    const result: UpdateUserResponse = await response.json();
+    return result.user;
+}
+
+export interface RequestPasswordResetResponse {
+    message: string;
+}
+
+/**
+ * Request a password reset - sends a verification code to the user's email
+ * Code expires after 15 minutes
+ */
+export async function requestPasswordReset(email: string): Promise<RequestPasswordResetResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to request password reset');
+    }
+
+    return response.json();
+}
+
+export interface VerifyPasswordResetRequest {
+    email: string;
+    code: string;
+    newPassword: string;
+}
+
+export interface VerifyPasswordResetResponse {
+    message: string;
+}
+
+/**
+ * Verify the code and update the password
+ */
+export async function verifyPasswordReset(data: VerifyPasswordResetRequest): Promise<VerifyPasswordResetResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reset password');
+    }
+
+    return response.json();
+}
+
+export interface RequestAccountDeletionResponse {
+    message: string;
+    verificationCodeSent: boolean;
+}
+
+/**
+ * Request account deletion - sends a verification code to the user's email
+ */
+export async function requestAccountDeletion(token: string): Promise<RequestAccountDeletionResponse> {
+    const response = await authenticatedFetch('/v1/users/me/delete/request', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to request account deletion');
+    }
+
+    return response.json();
+}
+
+export interface VerifyAccountDeletionRequest {
+    verificationCode: string;
+}
+
+export interface VerifyAccountDeletionResponse {
+    message: string;
+}
+
+/**
+ * Verify the code and delete the account
+ */
+export async function verifyAccountDeletion(token: string, data: VerifyAccountDeletionRequest): Promise<VerifyAccountDeletionResponse> {
+    const response = await authenticatedFetch('/v1/users/me/delete/verify', {
+        method: 'POST',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+    }
+
+    return response.json();
+}
+
