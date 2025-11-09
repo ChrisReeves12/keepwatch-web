@@ -1,8 +1,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface AuthResponse {
-    message: string;
-    token: string;
+    message?: string;
+    token?: string;
+    is2FARequired?: boolean;
     user: User;
 }
 
@@ -17,6 +18,8 @@ export interface User {
     createdAt: string;
     company: string;
     updatedAt: string;
+    emailVerifiedAt?: string | null;
+    is2FARequired?: boolean;
     _id: string;
 }
 
@@ -91,6 +94,40 @@ export async function authenticate(email: string, password: string): Promise<Aut
 
     if (!response.ok) {
         throw new Error(data.error || 'Authentication failed');
+    }
+
+    return data as AuthResponse;
+}
+
+interface VerifyTwoFactorRequest {
+    email: string;
+    code: string;
+}
+
+/**
+ * Verify 2FA code for a user
+ */
+export async function verifyTwoFactor({ email, code }: VerifyTwoFactorRequest): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/verify-2fa`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code }),
+    });
+
+    const data = await response.json();
+
+    if (response.status === 400) {
+        throw new Error(data.error || 'Invalid code input. Please check your entry.');
+    }
+
+    if (response.status === 401 || response.status === 404) {
+        throw new Error('Verification code is invalid or has expired.');
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || '2FA verification failed');
     }
 
     return data as AuthResponse;
@@ -571,6 +608,7 @@ export async function fetchEnvironments(token: string, projectId: string, logTyp
 export interface UpdateUserRequest {
     name?: string;
     company?: string;
+    is2FARequired?: boolean;
 }
 
 export interface UpdateUserResponse {
@@ -696,6 +734,49 @@ export async function verifyAccountDeletion(token: string, data: VerifyAccountDe
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete account');
+    }
+
+    return response.json();
+}
+
+export interface VerifyEmailResponse {
+    message: string;
+    user: User;
+}
+
+/**
+ * Verify email address with OTP code
+ */
+export async function verifyEmail(code: string): Promise<VerifyEmailResponse> {
+    const response = await authenticatedFetch('/v1/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to verify email');
+    }
+
+    return response.json();
+}
+
+export interface ResendVerificationResponse {
+    message: string;
+}
+
+/**
+ * Resend email verification code
+ */
+export async function resendVerificationEmail(email: string): Promise<ResendVerificationResponse> {
+    const response = await authenticatedFetch('/v1/auth/verify-email/resend', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to resend verification email');
     }
 
     return response.json();

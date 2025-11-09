@@ -1,6 +1,6 @@
 import type { Route } from "./+types/home";
 import { getAuthToken } from "~/lib/auth.server";
-import { fetchProjects, createProject, type Project } from "~/lib/api";
+import { fetchProjects, createProject, type Project, getCurrentUser, type User } from "~/lib/api";
 import { useLoaderData, Link, useNavigate, useActionData, Form } from "react-router";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -29,11 +29,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   // If authenticated, fetch projects
   try {
-    const { projects } = await fetchProjects(token);
+    const [user, { projects }] = await Promise.all([
+      getCurrentUser(token),
+      fetchProjects(token),
+    ]);
     return {
       authenticated: true as const,
       projects,
       token,
+      user,
     };
   } catch (error) {
     console.error("Failed to fetch projects:", error);
@@ -41,6 +45,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       authenticated: true as const,
       projects: [],
       token,
+      user: null,
       error: error instanceof Error ? error.message : "Failed to load projects",
     };
   }
@@ -72,6 +77,8 @@ export default function Home() {
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const initialUser = data.authenticated ? data.user : undefined;
+  const [currentUser, setCurrentUser] = useState<User | null | undefined>(initialUser);
 
   // Close dialog and refresh on success
   useEffect(() => {
@@ -89,9 +96,11 @@ export default function Home() {
   return (
     <>
       <Dashboard
+        user={currentUser ?? undefined}
         projects={data.projects}
         error={data.error}
         onCreateProject={() => setShowCreateDialog(true)}
+        onUserUpdate={(updatedUser) => setCurrentUser(updatedUser)}
       />
       <CreateProjectDialog
         open={showCreateDialog}
@@ -187,17 +196,21 @@ function CreateProjectDialog({
 
 // Dashboard Component for Authenticated Users
 function Dashboard({
+  user,
   projects,
   error,
-  onCreateProject
+  onCreateProject,
+  onUserUpdate,
 }: {
+  user?: User;
   projects: Project[];
   error?: string;
   onCreateProject: () => void;
+  onUserUpdate?: (user: User) => void;
 }) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader />
+      <DashboardHeader user={user} onEmailVerified={onUserUpdate} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
