@@ -387,6 +387,39 @@ export async function updateProject(token: string, projectId: string, data: Upda
     return result.project;
 }
 
+export interface SendProjectInviteRequest {
+    email: string;
+    role: string;
+}
+
+export interface SendProjectInviteResponse {
+    message?: string;
+    success?: boolean;
+}
+
+/**
+ * Send a project invitation to an email with a role
+ */
+export async function sendProjectInvite(
+    token: string,
+    projectId: string,
+    data: SendProjectInviteRequest
+): Promise<SendProjectInviteResponse> {
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/invite/send`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error((responseData as any).error || 'Failed to send invite');
+    }
+
+    return (responseData as SendProjectInviteResponse) || { success: true };
+}
+
 /**
  * Log Types and Interfaces
  */

@@ -1,6 +1,6 @@
 import type { Route } from "./+types/project.$projectId";
 import { getAuthToken } from "~/lib/auth.server";
-import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, type Project } from "~/lib/api";
+import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, sendProjectInvite, type Project } from "~/lib/api";
 import { useLoaderData, Link, useActionData, useNavigate, useSearchParams } from "react-router";
 import { DashboardHeader } from "~/components/DashboardHeader";
 import { Button } from "~/components/ui/button";
@@ -106,6 +106,19 @@ export async function action({ request, params }: Route.ActionArgs) {
         } catch (error) {
             return {
                 error: error instanceof Error ? error.message : "Failed to remove user",
+            };
+        }
+    }
+
+    if (action === "inviteUser") {
+        const email = (formData.get("email") as string) || "";
+        const role = (formData.get("role") as string) || "";
+        try {
+            await sendProjectInvite(token, projectId, { email, role });
+            return { success: true, inviteSent: true };
+        } catch (error) {
+            return {
+                error: error instanceof Error ? error.message : "Failed to send invite",
             };
         }
     }
@@ -277,6 +290,8 @@ export default function ProjectDetail() {
                         project={project}
                         onEditProject={() => setShowEditProjectDialog(true)}
                         canEdit={canUpdateProject}
+                        actionError={actionData?.error}
+                        inviteSent={actionData?.inviteSent}
                     />
                 )}
                 {activeTab === "apikeys" && (
