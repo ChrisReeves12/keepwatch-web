@@ -58,6 +58,7 @@ export interface Alarm {
     message: string | null;
     level: string | string[];
     environment: string;
+    categories?: string[];
     deliveryMethods: {
         email?: {
             addresses: string[];
@@ -394,6 +395,7 @@ export interface Log {
     level: string;
     environment: string;
     hostname?: string;
+    category?: string;
     projectId: string;
     projectObjectId: string;
     message: string;
@@ -432,6 +434,7 @@ export interface SearchLogsRequest {
     level?: string | string[];
     environment?: string | string[];
     hostname?: string | string[];
+    category?: string[];
     message?: MessageFilter;
     stackTrace?: MessageFilter;
     details?: MessageFilter;
@@ -585,6 +588,18 @@ export interface FetchEnvironmentsResponse {
 }
 
 /**
+ * Category types
+ */
+export interface CategoryOption {
+    value: string;
+    count: number;
+}
+
+export interface FetchCategoriesResponse {
+    categories: CategoryOption[];
+}
+
+/**
  * Fetch available environments for a project and log type
  */
 export async function fetchEnvironments(token: string, projectId: string, logType: 'application' | 'system'): Promise<FetchEnvironmentsResponse> {
@@ -596,6 +611,23 @@ export async function fetchEnvironments(token: string, projectId: string, logTyp
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to fetch environments' }));
         throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch environments`);
+    }
+
+    return response.json();
+}
+
+/**
+ * Fetch available categories for a project and log type
+ */
+export async function fetchCategories(token: string, projectId: string, logType: 'application' | 'system'): Promise<FetchCategoriesResponse> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}/${logType}/categories`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch categories' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch categories`);
     }
 
     return response.json();

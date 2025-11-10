@@ -1,9 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Checkbox } from "~/components/ui/checkbox";
-import { createAlarm, updateProjectAlarm, fetchEnvironments, type Alarm, type EnvironmentOption } from "~/lib/api";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Filter, Activity } from "lucide-react";
+import { createAlarm, updateProjectAlarm, fetchEnvironments, fetchCategories, type Alarm, type EnvironmentOption, type CategoryOption } from "~/lib/api";
+
+const MAX_SELECTED_CATEGORIES = 5;
 import validator from "validator";
 
 interface AddAlarmFormProps {
@@ -12,6 +16,7 @@ interface AddAlarmFormProps {
     initialMessage: string;
     initialLevel: string | string[];
     initialEnvironment: string;
+    initialCategories?: string[];
     userEmail?: string;
     editingAlarm?: Alarm | null;
     onSubmit: (data: Alarm) => void;
@@ -24,6 +29,7 @@ export function AddAlarmForm({
     initialMessage,
     initialLevel,
     initialEnvironment,
+    initialCategories = [],
     userEmail,
     editingAlarm,
     onSubmit,
@@ -44,6 +50,11 @@ export function AddAlarmForm({
             : (Array.isArray(initialLevel) ? initialLevel : [initialLevel]).map(l => l.toUpperCase())
     );
     const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(
+        isEditMode
+            ? (editingAlarm?.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES)
+            : (initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES)
+    );
 
     // Delivery method states - initialize based on edit mode
     const [enableEmail, setEnableEmail] = useState(
@@ -72,6 +83,11 @@ export function AddAlarmForm({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
     const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
+    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);
+    const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+    const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
+    const hasLoadedCategoriesRef = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // Function to load environments (called when needed, such as when dropdown opens or logType changes)
     const loadEnvironments = async () => {
@@ -86,9 +102,67 @@ export function AddAlarmForm({
         }
     };
 
-    // Load environments when logType changes
+    const loadCategories = async () => {
+        if (isLoadingCategories) {
+            return;
+        }
+
+        // Cancel any previous request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // Create new abort controller for this request
+        abortControllerRef.current = new AbortController();
+
+        try {
+            setIsLoadingCategories(true);
+            setCategoryLoadError(null);
+            const response = await fetchCategories(token, projectId, logType as 'application' | 'system');
+
+            // Check if request was aborted
+            if (abortControllerRef.current?.signal.aborted) {
+                return;
+            }
+
+            setAvailableCategories(response.categories);
+            hasLoadedCategoriesRef.current = true;
+        } catch (err) {
+            // Don't set error if request was aborted
+            if (err instanceof Error && err.name === 'AbortError') {
+                return;
+            }
+
+            console.error('Failed to fetch categories:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load categories';
+            setCategoryLoadError(errorMessage);
+
+            // Still mark as loaded to prevent infinite retries
+            hasLoadedCategoriesRef.current = true;
+        } finally {
+            setIsLoadingCategories(false);
+        }
+    };
+
+    // Load environments and categories when logType changes
     useEffect(() => {
+        hasLoadedCategoriesRef.current = false;
+        setAvailableCategories([]);
+        setCategoryLoadError(null);
         loadEnvironments();
+        loadCategories();
+
+        // Cleanup function to abort requests when component unmounts or logType changes
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, [logType]);
+
+    useEffect(() => {
+        setSelectedCategories([]);
+        hasLoadedCategoriesRef.current = false;
     }, [logType]);
 
     // Sync form state when editingAlarm changes (e.g., when editing a different alarm)
@@ -101,6 +175,7 @@ export function AddAlarmForm({
                 (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())
             );
             setEnvironment(editingAlarm.environment);
+            setSelectedCategories((editingAlarm.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES));
             setEmailAddresses(editingAlarm.deliveryMethods?.email?.addresses || [userEmail || '']);
             setEnableEmail(!!editingAlarm.deliveryMethods?.email);
             setSlackWebhook(editingAlarm.deliveryMethods?.slack?.webhook || '');
@@ -109,6 +184,14 @@ export function AddAlarmForm({
             setEnableWebhook(!!editingAlarm.deliveryMethods?.webhook);
         }
     }, [editingAlarm, isEditMode, initialMessage, userEmail]);
+
+    // Note: initialCategories is intentionally NOT in the dependency array to avoid infinite loops
+    // This effect only runs when isEditMode changes or on mount
+    useEffect(() => {
+        if (!isEditMode) {
+            setSelectedCategories((initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES));
+        }
+    }, [isEditMode]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -189,6 +272,7 @@ export function AddAlarmForm({
                 message: messageMatchAll ? null : trimmedMessage,
                 level: levels,
                 environment: trimmedEnvironment,
+                ...(selectedCategories.length > 0 ? { categories: selectedCategories } : {}),
                 deliveryMethods: {} as any
             };
 
@@ -234,6 +318,20 @@ export function AddAlarmForm({
                 ? prevLevels.filter(l => l !== level)
                 : [...prevLevels, level]
         );
+    };
+
+    const toggleCategory = (category: string) => {
+        setSelectedCategories(prevCategories => {
+            if (prevCategories.includes(category)) {
+                return prevCategories.filter(c => c !== category);
+            }
+
+            if (prevCategories.length >= MAX_SELECTED_CATEGORIES) {
+                return prevCategories;
+            }
+
+            return [...prevCategories, category];
+        });
     };
 
     // Helper functions for email management
@@ -371,6 +469,96 @@ export function AddAlarmForm({
                 )}
                 <p className="text-xs text-neutral mt-1">
                     The alarm will only apply to this specific environment.
+                </p>
+            </div>
+
+            <div>
+                <Label className="mb-2 block">Categories</Label>
+                <Popover onOpenChange={(open) => {
+                    if (open && !hasLoadedCategoriesRef.current && !isLoadingCategories) {
+                        loadCategories();
+                    }
+                }}>
+                    <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="w-full justify-between">
+                            <span className="truncate">
+                                {selectedCategories.length === 0
+                                    ? "Select categories"
+                                    : `${selectedCategories.length} selected`}
+                            </span>
+                            <Filter className="ml-2 h-4 w-4 shrink-0" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-3">
+                        <div className="space-y-2">
+                            {categoryLoadError ? (
+                                <div className="text-destructive text-sm text-center py-2">
+                                    {categoryLoadError}
+                                    <button
+                                        type="button"
+                                        onClick={() => loadCategories()}
+                                        className="block mx-auto mt-2 text-xs text-primary hover:underline"
+                                    >
+                                        Try again
+                                    </button>
+                                </div>
+                            ) : isLoadingCategories ? (
+                                <div className="flex items-center justify-center py-4">
+                                    <Activity className="h-4 w-4 text-neutral animate-spin" />
+                                </div>
+                            ) : availableCategories.length > 0 ? (
+                                <>
+                                    {availableCategories.map((category) => (
+                                        <div key={category.value} className="flex items-center justify-between space-x-2">
+                                            <div className="flex items-center space-x-2 flex-1">
+                                                <Checkbox
+                                                    id={`alarm-category-${category.value}`}
+                                                    checked={selectedCategories.includes(category.value)}
+                                                    onCheckedChange={() => toggleCategory(category.value)}
+                                                    disabled={!selectedCategories.includes(category.value) && selectedCategories.length >= MAX_SELECTED_CATEGORIES}
+                                                />
+                                                <label
+                                                    htmlFor={`alarm-category-${category.value}`}
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                                >
+                                                    {category.value}
+                                                </label>
+                                            </div>
+                                            <span className="text-xs text-neutral">
+                                                {category.count.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : (
+                                <div className="text-xs text-neutral text-center py-2">
+                                    No categories available
+                                </div>
+                            )}
+                        </div>
+                    </PopoverContent>
+                </Popover>
+                {selectedCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                        {selectedCategories.map((category) => (
+                            <span
+                                key={category}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
+                            >
+                                {category}
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCategory(category)}
+                                    className="hover:text-brand/70"
+                                >
+                                    ×
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                )}
+                <p className="text-xs text-neutral mt-1">
+                    Select up to {MAX_SELECTED_CATEGORIES} categories to trigger this alarm.
                 </p>
             </div>
 

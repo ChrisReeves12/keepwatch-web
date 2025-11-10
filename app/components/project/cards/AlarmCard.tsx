@@ -58,6 +58,21 @@ export function AlarmCard({ alarm, canDelete, canUpdate, onDelete, onUpdate, isD
                     <p className="text-sm text-primary-dark font-medium">
                         {!alarm.message ? <span className="italic text-neutral">Match all messages</span> : alarm.message}
                     </p>
+                    {Array.isArray(alarm.categories) && alarm.categories.length > 0 && (
+                        <div className="flex gap-2 items-center mt-2">
+                            <div className="text-xs">Categories: </div>
+                            <div className="flex flex-wrap gap-1">
+                                {alarm.categories.map((category) => (
+                                    <span
+                                        key={category}
+                                        className="inline-flex items-center px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
+                                    >
+                                    {category}
+                                </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </button>
 

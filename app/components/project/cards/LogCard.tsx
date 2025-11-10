@@ -90,6 +90,11 @@ export function LogCard({
                         <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
                             {log.environment}
                         </span>
+                        {log.category && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                {log.category}
+                            </span>
+                        )}
                         {log.hostname && (
                             <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
                                 {log.hostname}
@@ -139,6 +144,16 @@ export function LogCard({
             {/* Expanded Details */}
             {isExpanded && (
                 <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+                    {/* Category */}
+                    {log.category && (
+                        <div>
+                            <h4 className="text-xs font-medium text-neutral mb-2">Category</h4>
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-50 text-blue-700">
+                                {log.category}
+                            </span>
+                        </div>
+                    )}
+
                     {/* Details */}
                     {log.details && Object.keys(log.details).length > 0 && (
                         <div>

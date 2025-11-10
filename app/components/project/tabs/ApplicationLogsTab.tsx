@@ -13,7 +13,7 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { AddAlarmForm } from "~/components/AddAlarmForm";
 import { LogCard } from "../cards/LogCard";
 import { formatNumber, getPageNumbers, getLogLevelStyle } from "../utils";
-import { searchLogs, fetchEnvironments, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption } from "~/lib/api";
+import { searchLogs, fetchEnvironments, fetchCategories, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption } from "~/lib/api";
 import type { loader } from "~/routes/project.$projectId";
 
 export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, userEmail }: { project: Project; canCreateAlarm: boolean; canDeleteLogs: boolean; userEmail?: string }) {
@@ -39,6 +39,8 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     const [createdAlarmData, setCreatedAlarmData] = useState<Alarm | null>(null);
     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
     const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
+    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);
+    const [isLoadingCategories, setIsLoadingCategories] = useState(false);
 
     // Bulk delete state
     const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
@@ -51,6 +53,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     const currentPage = parseInt(searchParams.get("page") || "1", 10);
     const levelFilters = searchParams.getAll("level");
     const environmentFilters = searchParams.getAll("environment");
+    const categoryFilters = searchParams.getAll("category");
     const hostnameFilters = searchParams.getAll("hostname");
     const searchQuery = searchParams.get("search") || "";
     const timeRange = searchParams.get("timeRange") || "";
@@ -71,6 +74,18 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         }
     };
 
+    const loadCategories = async () => {
+        try {
+            setIsLoadingCategories(true);
+            const response = await fetchCategories(token, project.projectId, 'application');
+            setAvailableCategories(response.categories);
+        } catch (err) {
+            console.error('Failed to fetch categories:', err);
+        } finally {
+            setIsLoadingCategories(false);
+        }
+    };
+
     // Sync search input with URL param on mount
     useEffect(() => {
         setSearchInput(searchQuery);
@@ -80,7 +95,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
     useEffect(() => {
         setSelectedLogIds(new Set());
         setLastSelectedIndex(null);
-    }, [currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, sortOrder]);
+    }, [currentPage, levelFilters.join(','), environmentFilters.join(','), categoryFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, sortOrder]);
 
     // Debounce search input
     useEffect(() => {
@@ -135,6 +150,11 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                 // Add environment filters if provided (send as array if multiple, string if single)
                 if (environmentFilters.length > 0) {
                     filters.environment = environmentFilters.length === 1 ? environmentFilters[0] : environmentFilters;
+                }
+
+                // Add category filters if provided
+                if (categoryFilters.length > 0) {
+                    filters.category = categoryFilters;
                 }
 
                 // Add hostname filters if provided (send as array if multiple, string if single)
@@ -220,7 +240,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         };
 
         fetchLogs();
-    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, sortOrder, token, searchParams.get('_refresh')]);
+    }, [project.projectId, currentPage, levelFilters.join(','), environmentFilters.join(','), categoryFilters.join(','), hostnameFilters.join(','), searchQuery, timeRange, customStartTime, customEndTime, sortOrder, token, searchParams.get('_refresh')]);
 
     // Handle filter changes for multi-select
     const toggleLevelFilter = (level: string) => {
@@ -264,6 +284,28 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         newEnvironments.forEach(e => newParams.append("environment", e));
 
         newParams.set("page", "1"); // Reset to page 1 when filter changes
+        setSearchParams(newParams);
+    };
+
+    const toggleCategoryFilter = (category: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("category"); // Clear all category params
+
+        const currentCategories = categoryFilters;
+        let newCategories: string[];
+
+        if (currentCategories.includes(category)) {
+            // Remove the category
+            newCategories = currentCategories.filter(c => c !== category);
+        } else {
+            // Add the category
+            newCategories = [...currentCategories, category];
+        }
+
+        // Add back all selected categories
+        newCategories.forEach(c => newParams.append("category", c));
+
+        newParams.set("page", "1");
         setSearchParams(newParams);
     };
 
@@ -340,6 +382,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("level");
         newParams.delete("environment");
+        newParams.delete("category");
         newParams.delete("hostname");
         newParams.delete("search");
         newParams.delete("timeRange");
@@ -645,6 +688,81 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                                 {env}
                                                 <button
                                                     onClick={() => toggleEnvironmentFilter(env)}
+                                                    className="hover:text-brand/70"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Category Multi-Select */}
+                            <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
+                                <Label className="mb-2 block">Category</Label>
+                                <Popover onOpenChange={(open) => {
+                                    if (open) {
+                                        loadCategories();
+                                    }
+                                }}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between">
+                                            <span className="truncate">
+                                                {categoryFilters.length === 0
+                                                    ? "All Categories"
+                                                    : `${categoryFilters.length} selected`}
+                                            </span>
+                                            <Filter className="ml-2 h-4 w-4 shrink-0" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[250px] p-3">
+                                        <div className="space-y-2">
+                                            {isLoadingCategories ? (
+                                                <div className="flex items-center justify-center py-4">
+                                                    <Activity className="h-4 w-4 text-neutral animate-spin" />
+                                                </div>
+                                            ) : availableCategories.length > 0 ? (
+                                                <>
+                                                    {availableCategories.map((category) => (
+                                                        <div key={category.value} className="flex items-center justify-between space-x-2">
+                                                            <div className="flex items-center space-x-2 flex-1">
+                                                                <Checkbox
+                                                                    id={`category-${category.value}`}
+                                                                    checked={categoryFilters.includes(category.value)}
+                                                                    onCheckedChange={() => toggleCategoryFilter(category.value)}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`category-${category.value}`}
+                                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                                                >
+                                                                    {category.value}
+                                                                </label>
+                                                            </div>
+                                                            <span className="text-xs text-neutral">
+                                                                {category.count.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            ) : (
+                                                <div className="text-xs text-neutral text-center py-2">
+                                                    No categories found
+                                                </div>
+                                            )}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                                {categoryFilters.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {categoryFilters.map((category) => (
+                                            <span
+                                                key={category}
+                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded"
+                                            >
+                                                {category}
+                                                <button
+                                                    onClick={() => toggleCategoryFilter(category)}
                                                     className="hover:text-brand/70"
                                                 >
                                                     ×
@@ -999,6 +1117,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                 initialMessage={selectedLogForAlarm.message}
                                 initialLevel={selectedLogForAlarm.level}
                                 initialEnvironment={selectedLogForAlarm.environment}
+                                initialCategories={selectedLogForAlarm.category ? [selectedLogForAlarm.category] : []}
                                 userEmail={userEmail}
                                 onSubmit={(alarmData) => {
                                     setCreatedAlarmData(alarmData);
