@@ -136,6 +136,72 @@ export async function verifyTwoFactor({ email, code }: VerifyTwoFactorRequest): 
     return data as AuthResponse;
 }
 
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
+export interface ForgotPasswordResponse {
+    message: string;
+}
+
+export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to send password reset email');
+    }
+
+    return data as ForgotPasswordResponse;
+}
+
+export interface ResetPasswordRequest {
+    email: string;
+    code: string;
+    newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+    message: string;
+}
+
+export async function resetPassword({ email, code, newPassword }: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code, newPassword }),
+    });
+
+    const data = await response.json();
+
+    if (response.status === 400) {
+        throw new Error(data.error || 'Invalid input. Please check your entry.');
+    }
+
+    if (response.status === 401) {
+        throw new Error('Invalid or expired recovery code.');
+    }
+
+    if (response.status === 404) {
+        throw new Error('User not found.');
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Password reset failed');
+    }
+
+    return data as ResetPasswordResponse;
+}
+
 export interface RegisterUserRequest {
     name: string;
     email: string;

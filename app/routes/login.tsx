@@ -140,6 +140,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const registered = searchParams.get("registered") === "true";
+  const resetSuccess = searchParams.get("reset") === "success";
   const twoFactorRequired = actionData?.twoFactorRequired;
   const emailForVerification = actionData?.email;
   const codeExpiresAt = useMemo(() => moment().add(15, "minutes").format("h:mm A"), []);
@@ -176,6 +177,17 @@ export default function Login() {
                     <div>
                       <p className="font-semibold">Account created successfully!</p>
                       <p>Please sign in with your credentials.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Success Message for Password Reset */}
+                {resetSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5" />
+                    <div>
+                      <p className="font-semibold">Password reset successfully!</p>
+                      <p>Please sign in with your new password.</p>
                     </div>
                   </div>
                 )}
@@ -267,12 +279,12 @@ export default function Login() {
 
                 {/* Forgot Password Link */}
                 <div className="flex justify-end">
-                  <a
-                    href="#"
+                  <Link
+                    to="/forgot-password"
                     className="text-sm text-brand hover:text-accent underline-offset-4 hover:underline transition-colors"
                   >
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
 
                 {/* Sign In Button */}
