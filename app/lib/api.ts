@@ -947,3 +947,80 @@ export async function respondToInvite(
     return response.json();
 }
 
+/**
+ * Usage and Subscription types
+ */
+export interface UsageQuotaResponse {
+    logUsage: {
+        current: number;
+        limit: number;
+        remaining: number;
+        percentUsed: number;
+        isUnlimited: boolean;
+    };
+    billingPeriod: {
+        start: string;
+        end: string;
+        daysRemaining: number;
+    };
+}
+
+export interface SubscriptionPlanDetails {
+    _id: string;
+    name: string;
+    machineName: string;
+    listPrice: number;
+    logLimit: number;
+    projectLimit: number | null;
+    billingInterval: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface SubscriptionPlanEnrollment {
+    _id: string;
+    userId: string;
+    subscriptionPlan: string;
+    price: number;
+    createdAt: string;
+    updatedAt: string;
+    subscriptionPlanDetails: SubscriptionPlanDetails;
+}
+
+export interface UserSubscriptionResponse {
+    subscriptionPlanEnrollment: SubscriptionPlanEnrollment | null;
+}
+
+/**
+ * Fetch usage quota information for the current user
+ */
+export async function fetchUsageQuota(token: string): Promise<UsageQuotaResponse> {
+    const response = await authenticatedFetch('/v1/usage/quota', {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch usage quota');
+    }
+
+    return response.json();
+}
+
+/**
+ * Fetch current user's subscription plan information
+ */
+export async function fetchUserSubscription(token: string): Promise<UserSubscriptionResponse> {
+    const response = await authenticatedFetch('/v1/users/me/subscription', {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch subscription');
+    }
+
+    return response.json();
+}
