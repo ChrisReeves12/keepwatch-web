@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { CheckCircle, Copy, Key, Trash2 } from "lucide-react";
+import { CheckCircle, Copy, Key, Trash2, Settings } from "lucide-react";
 import moment from "moment";
 import type { Project } from "~/lib/api";
 
 export function APIKeyCard({
     apiKey,
     onDelete,
+    onConfigure,
     canDelete,
 }: {
     apiKey: Project["apiKeys"][0];
     onDelete: () => void;
+    onConfigure: () => void;
     canDelete: boolean;
 }) {
     const [copied, setCopied] = useState(false);
@@ -51,6 +53,13 @@ export function APIKeyCard({
                         ) : (
                             <Copy className="h-4 w-4" />
                         )}
+                    </button>
+                    <button
+                        onClick={onConfigure}
+                        className="text-brand hover:text-[#FFB30D] transition-colors"
+                        title="Configure constraints"
+                    >
+                        <Settings className="h-4 w-4" />
                     </button>
                     {canDelete && (
                         <button

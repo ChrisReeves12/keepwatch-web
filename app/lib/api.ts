@@ -295,6 +295,59 @@ export async function createAPIKey(token: string, projectId: string): Promise<Cr
     return response.json();
 }
 
+export interface UpdateAPIKeyRequest {
+    constraints: {
+        ipRestrictions?: {
+            allowedIps: string[];
+        };
+        refererRestrictions?: {
+            allowedReferers: string[];
+        };
+        rateLimits?: {
+            requestsPerMinute?: number;
+            requestsPerHour?: number;
+            requestsPerDay?: number;
+        };
+        expirationDate?: string;
+        allowedEnvironments?: string[];
+        originRestrictions?: {
+            allowedOrigins: string[];
+        };
+        userAgentRestrictions?: {
+            allowedPatterns: string[];
+        };
+    };
+}
+
+export interface UpdateAPIKeyResponse {
+    message: string;
+    apiKey: APIKey;
+}
+
+/**
+ * Update an API key's constraints
+ */
+export async function updateAPIKey(
+    token: string,
+    projectId: string,
+    apiKeyId: string,
+    data: UpdateAPIKeyRequest
+): Promise<UpdateAPIKeyResponse> {
+
+    const response = await authenticatedFetch(`/v1/projects/${projectId}/api-keys/${apiKeyId}`, {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update API key');
+    }
+
+    return response.json();
+}
+
 /**
  * Delete/revoke an API key
  */

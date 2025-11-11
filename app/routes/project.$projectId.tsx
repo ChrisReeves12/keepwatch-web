@@ -1,6 +1,6 @@
 import type { Route } from "./+types/project.$projectId";
 import { getAuthToken } from "~/lib/auth.server";
-import { fetchProject, createAPIKey, deleteAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, sendProjectInvite, type Project } from "~/lib/api";
+import { fetchProject, createAPIKey, deleteAPIKey, updateAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, sendProjectInvite, type Project } from "~/lib/api";
 import { useLoaderData, Link, useActionData, useNavigate, useSearchParams } from "react-router";
 import { DashboardHeader } from "~/components/DashboardHeader";
 import { Button } from "~/components/ui/button";
@@ -16,9 +16,11 @@ import { LogsTab } from "~/components/project/tabs/LogsTab";
 import { CreateAPIKeyDialog } from "~/components/project/dialogs/CreateAPIKeyDialog";
 import { NewAPIKeyDialog } from "~/components/project/dialogs/NewAPIKeyDialog";
 import { DeleteAPIKeyDialog } from "~/components/project/dialogs/DeleteAPIKeyDialog";
+import { ConfigureAPIKeyDialog } from "~/components/project/dialogs/ConfigureAPIKeyDialog";
 import { EditProjectDialog } from "~/components/project/dialogs/EditProjectDialog";
 import { RemoveUserDialog } from "~/components/project/dialogs/RemoveUserDialog";
 import { DeleteProjectDialog } from "~/components/project/dialogs/DeleteProjectDialog";
+import { ToastContainer, useToast } from "~/components/ui/toast";
 
 export function meta({ params }: Route.MetaArgs) {
     return [
@@ -71,6 +73,39 @@ export async function action({ request, params }: Route.ActionArgs) {
         } catch (error) {
             return {
                 error: error instanceof Error ? error.message : "Failed to create API key",
+            };
+        }
+    }
+
+    if (action === "updateAPIKey") {
+        const apiKeyId = formData.get("apiKeyId") as string;
+        const constraintsStr = formData.get("constraints") as string;
+
+        try {
+            const constraints = JSON.parse(constraintsStr);
+            
+            const requestsPerMinute = formData.get("requestsPerMinute");
+            const requestsPerHour = formData.get("requestsPerHour");
+            const requestsPerDay = formData.get("requestsPerDay");
+            const expirationDate = formData.get("expirationDate");
+
+            if (requestsPerMinute || requestsPerHour || requestsPerDay) {
+                constraints.rateLimits = {
+                    requestsPerMinute: requestsPerMinute ? Number(requestsPerMinute) : undefined,
+                    requestsPerHour: requestsPerHour ? Number(requestsPerHour) : undefined,
+                    requestsPerDay: requestsPerDay ? Number(requestsPerDay) : undefined,
+                };
+            }
+
+            if (expirationDate) {
+                constraints.expirationDate = new Date(expirationDate as string).toISOString();
+            }
+
+            await updateAPIKey(token, projectId, apiKeyId, { constraints });
+            return { success: true, apiKeyUpdated: true };
+        } catch (error) {
+            return {
+                error: error instanceof Error ? error.message : "Failed to update API key",
             };
         }
     }
@@ -144,6 +179,7 @@ export default function ProjectDetail() {
     const actionData = useActionData<typeof action>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { toasts, showToast, closeToast } = useToast();
 
     // Get current user's email from project users
     const currentUser = project.users.find(user => user.id === userId);
@@ -156,6 +192,7 @@ export default function ProjectDetail() {
     const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
     const [newAPIKey, setNewAPIKey] = useState<string | null>(null);
     const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null);
+    const [configureKeyId, setConfigureKeyId] = useState<string | null>(null);
     const [showDeleteProjectDialog, setShowDeleteProjectDialog] = useState(false);
     const [removeUserId, setRemoveUserId] = useState<string | null>(null);
     const [showEditProjectDialog, setShowEditProjectDialog] = useState(false);
@@ -210,6 +247,15 @@ export default function ProjectDetail() {
             navigate(".", { replace: true });
         }
     }, [actionData, navigate]);
+
+    // Handle successful API key update
+    useEffect(() => {
+        if (actionData?.success && actionData?.apiKeyUpdated && configureKeyId !== null) {
+            setConfigureKeyId(null);
+            showToast("API key constraints updated successfully");
+            navigate(`?tab=${activeTab}`, { replace: true });
+        }
+    }, [actionData, navigate, showToast, activeTab, configureKeyId]);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -301,6 +347,7 @@ export default function ProjectDetail() {
                         project={project}
                         onCreateAPIKey={() => setShowCreateAPIKeyDialog(true)}
                         onDeleteAPIKey={(keyId) => setDeleteKeyId(keyId)}
+                        onConfigureAPIKey={(keyId) => setConfigureKeyId(keyId)}
                         canCreate={canCreateAPIKey}
                         canDelete={canDeleteAPIKey}
                     />
@@ -358,6 +405,16 @@ export default function ProjectDetail() {
                 error={actionData?.error}
             />
 
+            {/* Configure API Key Dialog */}
+            {configureKeyId && (
+                <ConfigureAPIKeyDialog
+                    open={configureKeyId !== null}
+                    onOpenChange={(open) => !open && setConfigureKeyId(null)}
+                    apiKey={project.apiKeys.find(k => k.id === configureKeyId)!}
+                    error={actionData?.error}
+                />
+            )}
+
             {/* Delete Project Confirmation Dialog */}
             <DeleteProjectDialog
                 open={showDeleteProjectDialog}
@@ -382,6 +439,9 @@ export default function ProjectDetail() {
                 project={project}
                 error={actionData?.error}
             />
+
+            {/* Toast Notifications */}
+            <ToastContainer toasts={toasts} onClose={closeToast} />
         </div>
     );
 }

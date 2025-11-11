@@ -8,12 +8,14 @@ export function APIKeysTab({
     project,
     onCreateAPIKey,
     onDeleteAPIKey,
+    onConfigureAPIKey,
     canCreate,
     canDelete,
 }: {
     project: Project;
     onCreateAPIKey: () => void;
     onDeleteAPIKey: (keyId: string) => void;
+    onConfigureAPIKey: (keyId: string) => void;
     canCreate: boolean;
     canDelete: boolean;
 }) {
@@ -50,6 +52,7 @@ export function APIKeysTab({
                                     key={apiKey.id}
                                     apiKey={apiKey}
                                     onDelete={() => onDeleteAPIKey(apiKey.id)}
+                                    onConfigure={() => onConfigureAPIKey(apiKey.id)}
                                     canDelete={canDelete}
                                 />
                             ))}
