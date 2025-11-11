@@ -311,6 +311,8 @@ export default function ProjectDetail() {
                         userId={userId}
                         onRemoveUser={(id) => setRemoveUserId(id)}
                         canRemoveUsers={isAdmin}
+                        actionError={actionData?.error}
+                        inviteSent={actionData?.inviteSent}
                     />
                 )}
                 {activeTab === "logs" && (
