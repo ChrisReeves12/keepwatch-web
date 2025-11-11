@@ -325,11 +325,13 @@ export default function ProjectDetail() {
                         userEmail={userEmail}
                     />
                 )}
-                {activeTab === "settings" && isAdmin && (
+                {activeTab === "settings" && canUpdateProject && (
                     <SettingsTab
                         project={project}
                         onDeleteProject={() => setShowDeleteProjectDialog(true)}
+                        onEditProject={() => setShowEditProjectDialog(true)}
                         canDelete={canDeleteProject}
+                        canEdit={canUpdateProject}
                     />
                 )}
             </main>

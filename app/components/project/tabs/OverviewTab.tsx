@@ -107,35 +107,8 @@ export function OverviewTab({
             {/* Project Information */}
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between gap-2">
-                        <div>
-                            <CardTitle>Project Information</CardTitle>
-                            <CardDescription>Basic details about this project</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {canEdit && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        onClick={onEditProject}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                        Edit Details
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        className="bg-[#FFB30D] hover:bg-[#FFB30D]/90 text-white flex items-center gap-2"
-                                        onClick={() => setInviteOpen(true)}
-                                        title="Invite a new member to this project"
-                                    >
-                                        <UserPlus className="h-4 w-4" />
-                                        Invite Member
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                    <CardTitle>Project Information</CardTitle>
+                    <CardDescription>Basic details about this project</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div>
