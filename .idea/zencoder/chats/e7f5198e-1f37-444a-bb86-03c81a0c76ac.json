@@ -1,0 +1,544 @@
+{
+    "checksum": "194fc045e7876b18cd3c04ad96cb0373f74609b8d6c25953ed853ce9c2238f42",
+    "data": {
+    "id": "e7f5198e-1f37-444a-bb86-03c81a0c76ac",
+    "createdAt": 1762896108179,
+    "updatedAt": 1762896201767,
+    "title": "Webhook Dispatch Toast Confirmation",
+    "messages": [
+        {
+            "id": "69f152ba-b9e1-4fef-a051-9959abd5a540",
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "After we send the test webhook, let's show a toast showing the user we sent the webhook request"
+                }
+            ],
+            "context": {
+                "currentFile": {
+                    "path": "app/components/project/dialogs/AddAlarmForm.tsx",
+                    "fsPath": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                    "sources": [
+                        "opened_tab"
+                    ],
+                    "content": "import { useState, useEffect, useRef } from \"react\";\nimport { Button } from \"~/components/ui/button\";\nimport { Input } from \"~/components/ui/input\";\nimport { Label } from \"~/components/ui/label\";\nimport { Checkbox } from \"~/components/ui/checkbox\";\nimport { Popover, PopoverContent, PopoverTrigger } from \"~/components/ui/popover\";\nimport { Filter, Activity } from \"lucide-react\";\nimport {\n    createAlarm,\n    updateProjectAlarm,\n    fetchEnvironments,\n    fetchCategories,\n    type Alarm,\n    type EnvironmentOption,\n    type CategoryOption,\n    authenticatedFetch\n} from \"~/lib/api\";\n\nconst MAX_SELECTED_CATEGORIES = 5;\nimport validator from \"validator\";\n\ninterface AddAlarmFormProps {\n    projectId: string;\n    token: string;\n    initialMessage: string;\n    initialLevel: string | string[];\n    initialEnvironment: string;\n    initialCategories?: string[];\n    userEmail?: string;\n    editingAlarm?: Alarm | null;\n    onSubmit: (data: Alarm) => void;\n    onCancel: () => void;\n}\n\nexport function AddAlarmForm({\n    projectId,\n    token,\n    initialMessage,\n    initialLevel,\n    initialEnvironment,\n    initialCategories = [],\n    userEmail,\n    editingAlarm,\n    onSubmit,\n    onCancel,\n}: AddAlarmFormProps) {\n    // Determine if we're in edit mode\n    const isEditMode = !!editingAlarm;\n\n    // Initialize form state based on edit mode or defaults\n    const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'application');\n    const [messageMatchAll, setMessageMatchAll] = useState(isEditMode ? !editingAlarm.message : false);\n    const [message, setMessage] = useState(\n        isEditMode && editingAlarm.message ? editingAlarm.message : initialMessage\n    );\n    const [levels, setLevels] = useState<string[]>(\n        isEditMode\n            ? (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())\n            : (Array.isArray(initialLevel) ? initialLevel : [initialLevel]).map(l => l.toUpperCase())\n    );\n    const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);\n    const [selectedCategories, setSelectedCategories] = useState<string[]>(\n        isEditMode\n            ? (editingAlarm?.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES)\n            : (initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES)\n    );\n\n    // Delivery method states - initialize based on edit mode\n    const [enableEmail, setEnableEmail] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.email : true\n    );\n    const [emailAddresses, setEmailAddresses] = useState<string[]>(\n        isEditMode\n            ? (editingAlarm.deliveryMethods?.email?.addresses || [''])\n            : [userEmail || '']\n    );\n    const [enableSlack, setEnableSlack] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.slack : false\n    );\n    const [slackWebhook, setSlackWebhook] = useState(\n        isEditMode ? (editingAlarm.deliveryMethods?.slack?.webhook || '') : ''\n    );\n    const [enableWebhook, setEnableWebhook] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.webhook : false\n    );\n    const [webhookUrl, setWebhookUrl] = useState(\n        isEditMode ? (editingAlarm.deliveryMethods?.webhook?.url || '') : ''\n    );\n\n    // Error and loading states\n    const [errors, setErrors] = useState<string[]>([]);\n    const [isSubmitting, setIsSubmitting] = useState(false);\n    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);\n    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);\n    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);\n    const [isLoadingCategories, setIsLoadingCategories] = useState(false);\n    const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);\n    const hasLoadedCategoriesRef = useRef(false);\n    const abortControllerRef = useRef<AbortController | null>(null);\n\n    // Function to load environments (called when needed, such as when dropdown opens or logType changes)\n    const loadEnvironments = async () => {\n        try {\n            setIsLoadingEnvironments(true);\n            const response = await fetchEnvironments(token, projectId, logType as 'application' | 'system');\n            setAvailableEnvironments(response.environments);\n        } catch (err) {\n            console.error('Failed to fetch environments:', err);\n        } finally {\n            setIsLoadingEnvironments(false);\n        }\n    };\n\n    const loadCategories = async () => {\n        if (isLoadingCategories) {\n            return;\n        }\n\n        // Cancel any previous request\n        if (abortControllerRef.current) {\n            abortControllerRef.current.abort();\n        }\n\n        // Create new abort controller for this request\n        abortControllerRef.current = new AbortController();\n\n        try {\n            setIsLoadingCategories(true);\n            setCategoryLoadError(null);\n            const response = await fetchCategories(token, projectId, logType as 'application' | 'system');\n\n            // Check if request was aborted\n            if (abortControllerRef.current?.signal.aborted) {\n                return;\n            }\n\n            setAvailableCategories(response.categories);\n            hasLoadedCategoriesRef.current = true;\n        } catch (err) {\n            // Don't set error if request was aborted\n            if (err instanceof Error && err.name === 'AbortError') {\n                return;\n            }\n\n            console.error('Failed to fetch categories:', err);\n            const errorMessage = err instanceof Error ? err.message : 'Failed to load categories';\n            setCategoryLoadError(errorMessage);\n\n            // Still mark as loaded to prevent infinite retries\n            hasLoadedCategoriesRef.current = true;\n        } finally {\n            setIsLoadingCategories(false);\n        }\n    };\n\n    // Load environments and categories when logType changes\n    useEffect(() => {\n        hasLoadedCategoriesRef.current = false;\n        setAvailableCategories([]);\n        setCategoryLoadError(null);\n        loadEnvironments();\n        loadCategories();\n\n        // Cleanup function to abort requests when component unmounts or logType changes\n        return () => {\n            if (abortControllerRef.current) {\n                abortControllerRef.current.abort();\n            }\n        };\n    }, [logType]);\n\n    useEffect(() => {\n        setSelectedCategories([]);\n        hasLoadedCategoriesRef.current = false;\n    }, [logType]);\n\n    // Sync form state when editingAlarm changes (e.g., when editing a different alarm)\n    useEffect(() => {\n        if (isEditMode && editingAlarm) {\n            setLogType(editingAlarm.logType);\n            setMessageMatchAll(!editingAlarm.message);\n            setMessage(editingAlarm.message ? editingAlarm.message : initialMessage);\n            setLevels(\n                (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())\n            );\n            setEnvironment(editingAlarm.environment);\n            setSelectedCategories((editingAlarm.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES));\n            setEmailAddresses(editingAlarm.deliveryMethods?.email?.addresses || [userEmail || '']);\n            setEnableEmail(!!editingAlarm.deliveryMethods?.email);\n            setSlackWebhook(editingAlarm.deliveryMethods?.slack?.webhook || '');\n            setEnableSlack(!!editingAlarm.deliveryMethods?.slack);\n            setWebhookUrl(editingAlarm.deliveryMethods?.webhook?.url || '');\n            setEnableWebhook(!!editingAlarm.deliveryMethods?.webhook);\n        }\n    }, [editingAlarm, isEditMode, initialMessage, userEmail]);\n\n    // Note: initialCategories is intentionally NOT in the dependency array to avoid infinite loops\n    // This effect only runs when isEditMode changes or on mount\n    useEffect(() => {\n        if (!isEditMode) {\n            setSelectedCategories((initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES));\n        }\n    }, [isEditMode]);\n\n    const handleSubmit = async (e: React.FormEvent) => {\n        e.preventDefault();\n        setErrors([]);\n        setIsSubmitting(true);\n\n        try {\n            // Trim all input values\n            const trimmedMessage = message.trim();\n            const trimmedEnvironment = environment.trim();\n            const trimmedSlackWebhook = slackWebhook.trim();\n            const trimmedWebhookUrl = webhookUrl.trim();\n\n            // Validation\n            const validationErrors: string[] = [];\n\n            if (!messageMatchAll && !trimmedMessage) {\n                validationErrors.push(\"Message pattern is required (or select 'Match all messages')\");\n            }\n\n            if (levels.length === 0) {\n                validationErrors.push(\"At least one log level is required\");\n            }\n\n            if (!trimmedEnvironment) {\n                validationErrors.push(\"Environment is required\");\n            }\n\n            // Validate email addresses if email is enabled\n            if (enableEmail) {\n                const trimmedEmails = emailAddresses.map(email => email.trim()).filter(email => email);\n                if (trimmedEmails.length === 0) {\n                    validationErrors.push(\"At least one email address is required when email delivery is enabled\");\n                } else {\n                    const invalidEmails = trimmedEmails.filter(email => !validator.isEmail(email));\n                    if (invalidEmails.length > 0) {\n                        validationErrors.push(`Invalid email address(es): ${invalidEmails.join(', ')}`);\n                    }\n                }\n            }\n\n            // Validate Slack webhook URL if Slack is enabled\n            if (enableSlack) {\n                if (!trimmedSlackWebhook) {\n                    validationErrors.push(\"Slack webhook URL is required when Slack delivery is enabled\");\n                } else if (!validator.isURL(trimmedSlackWebhook, { require_protocol: true })) {\n                    validationErrors.push(\"Slack webhook must be a valid URL with protocol (https://)\");\n                }\n            }\n\n            // Validate webhook URL if webhook is enabled\n            if (enableWebhook) {\n                if (!trimmedWebhookUrl) {\n                    validationErrors.push(\"Webhook URL is required when webhook delivery is enabled\");\n                } else if (!validator.isURL(trimmedWebhookUrl, { require_protocol: true })) {\n                    validationErrors.push(\"Webhook URL must be a valid URL with protocol (http:// or https://)\");\n                }\n            }\n\n            // Check that at least one delivery method is enabled and configured\n            const hasValidDeliveryMethod =\n                (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n                (enableSlack && trimmedSlackWebhook && validator.isURL(trimmedSlackWebhook, { require_protocol: true })) ||\n                (enableWebhook && trimmedWebhookUrl && validator.isURL(trimmedWebhookUrl, { require_protocol: true }));\n\n            if (!hasValidDeliveryMethod) {\n                validationErrors.push(\"At least one valid delivery method must be configured\");\n            }\n\n            if (validationErrors.length > 0) {\n                setErrors(validationErrors);\n                return;\n            }\n\n            // Build the alarm data payload\n            const alarmPayload = {\n                logType,\n                message: messageMatchAll ? null : trimmedMessage,\n                level: levels,\n                environment: trimmedEnvironment,\n                ...(selectedCategories.length > 0 ? { categories: selectedCategories } : {}),\n                deliveryMethods: {} as any\n            };\n\n            // Add configured delivery methods\n            if (enableEmail) {\n                alarmPayload.deliveryMethods.email = {\n                    addresses: emailAddresses.map(email => email.trim()).filter(email => email)\n                };\n            }\n\n            if (enableSlack) {\n                alarmPayload.deliveryMethods.slack = {\n                    webhook: trimmedSlackWebhook\n                };\n            }\n\n            if (enableWebhook) {\n                alarmPayload.deliveryMethods.webhook = {\n                    url: trimmedWebhookUrl\n                };\n            }\n\n            // Make API call - either create or update\n            const resultAlarm = isEditMode\n                ? await updateProjectAlarm(token, projectId, editingAlarm.id, alarmPayload)\n                : await createAlarm(token, projectId, alarmPayload);\n\n            // Call the onSubmit callback with the alarm data\n            onSubmit(resultAlarm);\n\n        } catch (error) {\n            console.error(`Error ${isEditMode ? 'updating' : 'creating'} alarm:`, error);\n            setErrors([error instanceof Error ? error.message : 'An unexpected error occurred']);\n        } finally {\n            setIsSubmitting(false);\n        }\n    };\n\n    // Helper functions for log level management\n    const toggleLogLevel = (level: string) => {\n        setLevels(prevLevels =>\n            prevLevels.includes(level)\n                ? prevLevels.filter(l => l !== level)\n                : [...prevLevels, level]\n        );\n    };\n\n    const toggleCategory = (category: string) => {\n        setSelectedCategories(prevCategories => {\n            if (prevCategories.includes(category)) {\n                return prevCategories.filter(c => c !== category);\n            }\n\n            if (prevCategories.length >= MAX_SELECTED_CATEGORIES) {\n                return prevCategories;\n            }\n\n            return [...prevCategories, category];\n        });\n    };\n\n    // Helper functions for email management\n    const addEmailField = () => {\n        if (emailAddresses.length < 5) {\n            setEmailAddresses([...emailAddresses, '']);\n        }\n    };\n\n    const removeEmailField = (index: number) => {\n        setEmailAddresses(emailAddresses.filter((_, i) => i !== index));\n    };\n\n    const updateEmailField = (index: number, value: string) => {\n        const newEmails = [...emailAddresses];\n        newEmails[index] = value;\n        setEmailAddresses(newEmails);\n    };\n\n    const sendTestWebhook = async () => {\n        if (enableWebhook && webhookUrl.trim()) {\n            try {\n                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {\n                    method: 'POST',\n                    token,\n                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                })\n            } catch (error) {\n                console.error(error);\n                alert(\"Failed to send test webhook. Please check the webhook URL.\");\n            }\n        }\n    };\n\n    // Validation - at least one delivery method must be enabled and configured\n    const hasValidDeliveryMethod =\n        (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n        (enableSlack && slackWebhook.trim() && validator.isURL(slackWebhook.trim(), { require_protocol: true })) ||\n        (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n\n    return (\n        <form onSubmit={handleSubmit} className=\"space-y-4\">\n            {/* Error Display */}\n            {errors.length > 0 && (\n                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                    <ul className=\"list-disc list-inside space-y-1\">\n                        {errors.map((error, index) => (\n                            <li key={index}>{error}</li>\n                        ))}\n                    </ul>\n                </div>\n            )}\n            <div>\n                <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>\n                <select\n                    id=\"alarm-log-type\"\n                    value={logType}\n                    onChange={(e) => setLogType(e.target.value)}\n                    required\n                    className=\"w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground\"\n                >\n                    <option value=\"application\">Application Log</option>\n                    <option value=\"system\">System Log</option>\n                </select>\n                <p className=\"text-xs text-neutral mt-1\">\n                    Choose which type of logs this alarm should monitor.\n                </p>\n            </div>\n\n            <div>\n                <div className=\"space-y-2\">\n                    <div className=\"flex items-center space-x-2\">\n                        <Checkbox\n                            id=\"match-all-messages\"\n                            checked={messageMatchAll}\n                            onCheckedChange={(checked) => setMessageMatchAll(checked === true)}\n                        />\n                        <Label htmlFor=\"match-all-messages\" className=\"cursor-pointer\">Match all messages</Label>\n                    </div>\n                    <p className=\"text-xs text-neutral ml-6\">\n                        When enabled, this alarm will trigger on any message matching the log level and environment.\n                    </p>\n                </div>\n\n                {!messageMatchAll && (\n                    <div className=\"mt-3\">\n                        <Label htmlFor=\"alarm-message\" className=\"mb-2 block\">Message Pattern *</Label>\n                        <Input\n                            id=\"alarm-message\"\n                            value={message}\n                            onChange={(e) => setMessage(e.target.value)}\n                            placeholder=\"Enter message pattern...\"\n                            required\n                        />\n                        <p className=\"text-xs text-neutral mt-1\">\n                            The alarm will trigger when logs contain this message pattern.\n                        </p>\n                    </div>\n                )}\n            </div>\n\n            <div>\n                <Label className=\"mb-2 block\">Log Levels *</Label>\n                <div className=\"space-y-2\">\n                    {['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].map((level) => (\n                        <div key={level} className=\"flex items-center space-x-2\">\n                            <Checkbox\n                                id={`alarm-level-${level}`}\n                                checked={levels.includes(level)}\n                                onCheckedChange={() => toggleLogLevel(level)}\n                            />\n                            <Label htmlFor={`alarm-level-${level}`} className=\"cursor-pointer font-normal\">\n                                {level}\n                            </Label>\n                        </div>\n                    ))}\n                </div>\n                <p className=\"text-xs text-neutral mt-2\">\n                    Select which log levels should trigger this alarm.\n                </p>\n            </div>\n\n            <div>\n                <Label htmlFor=\"alarm-environment\" className=\"mb-2 block\">Environment *</Label>\n                {availableEnvironments.length > 0 ? (\n                    <select\n                        id=\"alarm-environment\"\n                        value={environment}\n                        onChange={(e) => setEnvironment(e.target.value)}\n                        disabled={isLoadingEnvironments}\n                        required\n                        className=\"w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground disabled:opacity-50 disabled:cursor-not-allowed\"\n                    >\n                        <option value=\"\">{isLoadingEnvironments ? \"Loading environments...\" : \"Select an environment...\"}</option>\n                        {availableEnvironments.map((env) => (\n                            <option key={env.value} value={env.value}>\n                                {env.value} ({env.count.toLocaleString()} logs)\n                            </option>\n                        ))}\n                    </select>\n                ) : (\n                    <Input\n                        id=\"alarm-environment\"\n                        value={environment}\n                        onChange={(e) => setEnvironment(e.target.value)}\n                        placeholder={isLoadingEnvironments ? \"Loading environments...\" : \"Enter environment name...\"}\n                        disabled={isLoadingEnvironments}\n                        required\n                    />\n                )}\n                <p className=\"text-xs text-neutral mt-1\">\n                    The alarm will only apply to this specific environment.\n                </p>\n            </div>\n\n            <div>\n                <Label className=\"mb-2 block\">Categories</Label>\n                <Popover onOpenChange={(open) => {\n                    if (open && !hasLoadedCategoriesRef.current && !isLoadingCategories) {\n                        loadCategories();\n                    }\n                }}>\n                    <PopoverTrigger asChild>\n                        <Button type=\"button\" variant=\"outline\" className=\"w-full justify-between\">\n                            <span className=\"truncate\">\n                                {selectedCategories.length === 0\n                                    ? \"Select categories\"\n                                    : `${selectedCategories.length} selected`}\n                            </span>\n                            <Filter className=\"ml-2 h-4 w-4 shrink-0\" />\n                        </Button>\n                    </PopoverTrigger>\n                    <PopoverContent className=\"w-[250px] p-3\">\n                        <div className=\"space-y-2\">\n                            {categoryLoadError ? (\n                                <div className=\"text-destructive text-sm text-center py-2\">\n                                    {categoryLoadError}\n                                    <button\n                                        type=\"button\"\n                                        onClick={() => loadCategories()}\n                                        className=\"block mx-auto mt-2 text-xs text-primary hover:underline\"\n                                    >\n                                        Try again\n                                    </button>\n                                </div>\n                            ) : isLoadingCategories ? (\n                                <div className=\"flex items-center justify-center py-4\">\n                                    <Activity className=\"h-4 w-4 text-neutral animate-spin\" />\n                                </div>\n                            ) : availableCategories.length > 0 ? (\n                                <>\n                                    {availableCategories.map((category) => (\n                                        <div key={category.value} className=\"flex items-center justify-between space-x-2\">\n                                            <div className=\"flex items-center space-x-2 flex-1\">\n                                                <Checkbox\n                                                    id={`alarm-category-${category.value}`}\n                                                    checked={selectedCategories.includes(category.value)}\n                                                    onCheckedChange={() => toggleCategory(category.value)}\n                                                    disabled={!selectedCategories.includes(category.value) && selectedCategories.length >= MAX_SELECTED_CATEGORIES}\n                                                />\n                                                <label\n                                                    htmlFor={`alarm-category-${category.value}`}\n                                                    className=\"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1\"\n                                                >\n                                                    {category.value}\n                                                </label>\n                                            </div>\n                                            <span className=\"text-xs text-neutral\">\n                                                {category.count.toLocaleString()}\n                                            </span>\n                                        </div>\n                                    ))}\n                                </>\n                            ) : (\n                                <div className=\"text-xs text-neutral text-center py-2\">\n                                    No categories available\n                                </div>\n                            )}\n                        </div>\n                    </PopoverContent>\n                </Popover>\n                {selectedCategories.length > 0 && (\n                    <div className=\"flex flex-wrap gap-1 mt-2\">\n                        {selectedCategories.map((category) => (\n                            <span\n                                key={category}\n                                className=\"inline-flex items-center gap-1 px-2 py-1 text-xs bg-brand/10 text-brand rounded\"\n                            >\n                                {category}\n                                <button\n                                    type=\"button\"\n                                    onClick={() => toggleCategory(category)}\n                                    className=\"hover:text-brand/70\"\n                                >\n                                    ×\n                                </button>\n                            </span>\n                        ))}\n                    </div>\n                )}\n                <p className=\"text-xs text-neutral mt-1\">\n                    Select up to {MAX_SELECTED_CATEGORIES} categories to trigger this alarm.\n                </p>\n            </div>\n\n            {/* Delivery Methods */}\n            <div className=\"border-t border-border pt-4\">\n                <Label className=\"font-medium text-primary-dark mb-2 block\">Delivery Methods *</Label>\n                <p className=\"text-xs text-neutral mt-1 mb-4\">\n                    Choose at least one way to receive alarm notifications.\n                </p>\n\n                <div className=\"space-y-4\">\n                    {/* Email */}\n                    <div>\n                        <div className=\"flex items-center space-x-2 mb-2\">\n                            <Checkbox\n                                id=\"enable-email\"\n                                checked={enableEmail}\n                                onCheckedChange={(checked) => setEnableEmail(checked === true)}\n                            />\n                            <Label htmlFor=\"enable-email\" className=\"cursor-pointer\">Email (up to 5 addresses)</Label>\n                        </div>\n                        {enableEmail && (\n                            <div className=\"ml-6 space-y-2\">\n                                {emailAddresses.map((email, index) => (\n                                    <div key={index} className=\"flex gap-2\">\n                                        <Input\n                                            type=\"email\"\n                                            value={email}\n                                            onChange={(e) => updateEmailField(index, e.target.value)}\n                                            placeholder=\"Enter email address...\"\n                                            className=\"flex-1\"\n                                        />\n                                        {emailAddresses.length > 1 && (\n                                            <Button\n                                                type=\"button\"\n                                                variant=\"outline\"\n                                                size=\"sm\"\n                                                onClick={() => removeEmailField(index)}\n                                            >\n                                                ×\n                                            </Button>\n                                        )}\n                                    </div>\n                                ))}\n                                {emailAddresses.length < 5 && (\n                                    <Button\n                                        type=\"button\"\n                                        variant=\"outline\"\n                                        size=\"sm\"\n                                        onClick={addEmailField}\n                                        className=\"text-xs\"\n                                    >\n                                        + Add Email\n                                    </Button>\n                                )}\n                            </div>\n                        )}\n                    </div>\n\n                    {/* Slack */}\n                    <div>\n                        <div className=\"flex items-center space-x-2 mb-2\">\n                            <Checkbox\n                                id=\"enable-slack\"\n                                checked={enableSlack}\n                                onCheckedChange={(checked) => setEnableSlack(checked === true)}\n                            />\n                            <Label htmlFor=\"enable-slack\" className=\"cursor-pointer\">Slack</Label>\n                        </div>\n                        {enableSlack && (\n                            <div className=\"ml-6\">\n                                <Input\n                                    type=\"url\"\n                                    value={slackWebhook}\n                                    onChange={(e) => setSlackWebhook(e.target.value)}\n                                    placeholder=\"https://hooks.slack.com/services/...\"\n                                />\n                                <p className=\"text-xs text-neutral mt-1\">\n                                    Enter your Slack webhook URL\n                                </p>\n                            </div>\n                        )}\n                    </div>\n\n\n                    {/* Webhook */}\n                    <div>\n                        <div className=\"flex items-center space-x-2 mb-2\">\n                            <Checkbox\n                                id=\"enable-webhook\"\n                                checked={enableWebhook}\n                                onCheckedChange={(checked) => setEnableWebhook(checked === true)}\n                            />\n                            <Label htmlFor=\"enable-webhook\" className=\"cursor-pointer\">Webhook</Label>\n                        </div>\n                        {enableWebhook && (\n                            <div className=\"ml-6\">\n                                <div className=\"flex gap-2 items-center\">\n                                    <Input\n                                        type=\"url\"\n                                        value={webhookUrl}\n                                        onChange={(e) => setWebhookUrl(e.target.value)}\n                                        placeholder=\"https://your-api.com/webhook\"\n                                    />\n                                    <button onClick={sendTestWebhook} className=\"text-xs text-white bg-brand px-3 py-1 rounded-sm\">\n                                        Send Test Notification</button>\n                                </div>\n                                <p className=\"text-xs text-neutral mt-1\">\n                                    Enter webhook URL for POST notifications\n                                </p>\n                            </div>\n                        )}\n                    </div>\n\n                    {!hasValidDeliveryMethod && (enableEmail || enableSlack || enableWebhook) && (\n                        <div className=\"bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 px-3 py-2 rounded-md text-xs\">\n                            Please fill in the required information for your selected delivery methods.\n                        </div>\n                    )}\n                </div>\n            </div>\n\n            <div className=\"flex gap-2 pt-4\">\n                <Button type=\"button\" variant=\"outline\" onClick={onCancel} disabled={isSubmitting}>\n                    Cancel\n                </Button>\n                <Button\n                    type=\"submit\"\n                    disabled={\n                        (messageMatchAll ? false : !message.trim()) ||\n                        levels.length === 0 ||\n                        !environment.trim() ||\n                        !hasValidDeliveryMethod ||\n                        isSubmitting\n                    }\n                >\n                    {isSubmitting\n                        ? (isEditMode ? \"Updating Alarm...\" : \"Creating Alarm...\")\n                        : (isEditMode ? \"Update Alarm\" : \"Create Alarm\")\n                    }\n                </Button>\n            </div>\n        </form>\n    );\n}\n",
+                    "language": "typescript jsx"
+                }
+            },
+            "createdAt": 1762896108235,
+            "isInternal": false,
+            "rawContent": {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "After we send the test webhook, let's show a toast showing the user we sent the webhook request"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "autoAppliedRules": []
+        },
+        {
+            "id": "msg_01VQvZpTzVY1zevwbbfMJD3g",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I'll help you add a toast notification after sending the test webhook. Let me first read the AddAlarmForm.tsx file to understand the current implementation."
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01SZAqUWuVmCAUaBHgowfh92",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx"
+                    },
+                    "output": "Lines 1-400 of 731 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:\nimport { useState, useEffect, useRef } from \"react\";\nimport { Button } from \"~/components/ui/button\";\nimport { Input } from \"~/components/ui/input\";\nimport { Label } from \"~/components/ui/label\";\nimport { Checkbox } from \"~/components/ui/checkbox\";\nimport { Popover, PopoverContent, PopoverTrigger } from \"~/components/ui/popover\";\nimport { Filter, Activity } from \"lucide-react\";\nimport {\n    createAlarm,\n    updateProjectAlarm,\n    fetchEnvironments,\n    fetchCategories,\n    type Alarm,\n    type EnvironmentOption,\n    type CategoryOption,\n    authenticatedFetch\n} from \"~/lib/api\";\n\nconst MAX_SELECTED_CATEGORIES = 5;\nimport validator from \"validator\";\n\ninterface AddAlarmFormProps {\n    projectId: string;\n    token: string;\n    initialMessage: string;\n    initialLevel: string | string[];\n    initialEnvironment: string;\n    initialCategories?: string[];\n    userEmail?: string;\n    editingAlarm?: Alarm | null;\n    onSubmit: (data: Alarm) => void;\n    onCancel: () => void;\n}\n\nexport function AddAlarmForm({\n    projectId,\n    token,\n    initialMessage,\n    initialLevel,\n    initialEnvironment,\n    initialCategories = [],\n    userEmail,\n    editingAlarm,\n    onSubmit,\n    onCancel,\n}: AddAlarmFormProps) {\n    // Determine if we're in edit mode\n    const isEditMode = !!editingAlarm;\n\n    // Initialize form state based on edit mode or defaults\n    const [logType, setLogType] = useState(isEditMode ? editingAlarm.logType : 'application');\n    const [messageMatchAll, setMessageMatchAll] = useState(isEditMode ? !editingAlarm.message : false);\n    const [message, setMessage] = useState(\n        isEditMode && editingAlarm.message ? editingAlarm.message : initialMessage\n    );\n    const [levels, setLevels] = useState<string[]>(\n        isEditMode\n            ? (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())\n            : (Array.isArray(initialLevel) ? initialLevel : [initialLevel]).map(l => l.toUpperCase())\n    );\n    const [environment, setEnvironment] = useState(isEditMode ? editingAlarm.environment : initialEnvironment);\n    const [selectedCategories, setSelectedCategories] = useState<string[]>(\n        isEditMode\n            ? (editingAlarm?.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES)\n            : (initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES)\n    );\n\n    // Delivery method states - initialize based on edit mode\n    const [enableEmail, setEnableEmail] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.email : true\n    );\n    const [emailAddresses, setEmailAddresses] = useState<string[]>(\n        isEditMode\n            ? (editingAlarm.deliveryMethods?.email?.addresses || [''])\n            : [userEmail || '']\n    );\n    const [enableSlack, setEnableSlack] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.slack : false\n    );\n    const [slackWebhook, setSlackWebhook] = useState(\n        isEditMode ? (editingAlarm.deliveryMethods?.slack?.webhook || '') : ''\n    );\n    const [enableWebhook, setEnableWebhook] = useState(\n        isEditMode ? !!editingAlarm.deliveryMethods?.webhook : false\n    );\n    const [webhookUrl, setWebhookUrl] = useState(\n        isEditMode ? (editingAlarm.deliveryMethods?.webhook?.url || '') : ''\n    );\n\n    // Error and loading states\n    const [errors, setErrors] = useState<string[]>([]);\n    const [isSubmitting, setIsSubmitting] = useState(false);\n    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);\n    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);\n    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);\n    const [isLoadingCategories, setIsLoadingCategories] = useState(false);\n    const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);\n    const hasLoadedCategoriesRef = useRef(false);\n    const abortControllerRef = useRef<AbortController | null>(null);\n\n    // Function to load environments (called when needed, such as when dropdown opens or logType changes)\n    const loadEnvironments = async () => {\n        try {\n            setIsLoadingEnvironments(true);\n            const response = await fetchEnvironments(token, projectId, logType as 'application' | 'system');\n            setAvailableEnvironments(response.environments);\n        } catch (err) {\n            console.error('Failed to fetch environments:', err);\n        } finally {\n            setIsLoadingEnvironments(false);\n        }\n    };\n\n    const loadCategories = async () => {\n        if (isLoadingCategories) {\n            return;\n        }\n\n        // Cancel any previous request\n        if (abortControllerRef.current) {\n            abortControllerRef.current.abort();\n        }\n\n        // Create new abort controller for this request\n        abortControllerRef.current = new AbortController();\n\n        try {\n            setIsLoadingCategories(true);\n            setCategoryLoadError(null);\n            const response = await fetchCategories(token, projectId, logType as 'application' | 'system');\n\n            // Check if request was aborted\n            if (abortControllerRef.current?.signal.aborted) {\n                return;\n            }\n\n            setAvailableCategories(response.categories);\n            hasLoadedCategoriesRef.current = true;\n        } catch (err) {\n            // Don't set error if request was aborted\n            if (err instanceof Error && err.name === 'AbortError') {\n                return;\n            }\n\n            console.error('Failed to fetch categories:', err);\n            const errorMessage = err instanceof Error ? err.message : 'Failed to load categories';\n            setCategoryLoadError(errorMessage);\n\n            // Still mark as loaded to prevent infinite retries\n            hasLoadedCategoriesRef.current = true;\n        } finally {\n            setIsLoadingCategories(false);\n        }\n    };\n\n    // Load environments and categories when logType changes\n    useEffect(() => {\n        hasLoadedCategoriesRef.current = false;\n        setAvailableCategories([]);\n        setCategoryLoadError(null);\n        loadEnvironments();\n        loadCategories();\n\n        // Cleanup function to abort requests when component unmounts or logType changes\n        return () => {\n            if (abortControllerRef.current) {\n                abortControllerRef.current.abort();\n            }\n        };\n    }, [logType]);\n\n    useEffect(() => {\n        setSelectedCategories([]);\n        hasLoadedCategoriesRef.current = false;\n    }, [logType]);\n\n    // Sync form state when editingAlarm changes (e.g., when editing a different alarm)\n    useEffect(() => {\n        if (isEditMode && editingAlarm) {\n            setLogType(editingAlarm.logType);\n            setMessageMatchAll(!editingAlarm.message);\n            setMessage(editingAlarm.message ? editingAlarm.message : initialMessage);\n            setLevels(\n                (Array.isArray(editingAlarm.level) ? editingAlarm.level : [editingAlarm.level]).map(l => l.toUpperCase())\n            );\n            setEnvironment(editingAlarm.environment);\n            setSelectedCategories((editingAlarm.categories ?? []).slice(0, MAX_SELECTED_CATEGORIES));\n            setEmailAddresses(editingAlarm.deliveryMethods?.email?.addresses || [userEmail || '']);\n            setEnableEmail(!!editingAlarm.deliveryMethods?.email);\n            setSlackWebhook(editingAlarm.deliveryMethods?.slack?.webhook || '');\n            setEnableSlack(!!editingAlarm.deliveryMethods?.slack);\n            setWebhookUrl(editingAlarm.deliveryMethods?.webhook?.url || '');\n            setEnableWebhook(!!editingAlarm.deliveryMethods?.webhook);\n        }\n    }, [editingAlarm, isEditMode, initialMessage, userEmail]);\n\n    // Note: initialCategories is intentionally NOT in the dependency array to avoid infinite loops\n    // This effect only runs when isEditMode changes or on mount\n    useEffect(() => {\n        if (!isEditMode) {\n            setSelectedCategories((initialCategories ?? []).slice(0, MAX_SELECTED_CATEGORIES));\n        }\n    }, [isEditMode]);\n\n    const handleSubmit = async (e: React.FormEvent) => {\n        e.preventDefault();\n        setErrors([]);\n        setIsSubmitting(true);\n\n        try {\n            // Trim all input values\n            const trimmedMessage = message.trim();\n            const trimmedEnvironment = environment.trim();\n            const trimmedSlackWebhook = slackWebhook.trim();\n            const trimmedWebhookUrl = webhookUrl.trim();\n\n            // Validation\n            const validationErrors: string[] = [];\n\n            if (!messageMatchAll && !trimmedMessage) {\n                validationErrors.push(\"Message pattern is required (or select 'Match all messages')\");\n            }\n\n            if (levels.length === 0) {\n                validationErrors.push(\"At least one log level is required\");\n            }\n\n            if (!trimmedEnvironment) {\n                validationErrors.push(\"Environment is required\");\n            }\n\n            // Validate email addresses if email is enabled\n            if (enableEmail) {\n                const trimmedEmails = emailAddresses.map(email => email.trim()).filter(email => email);\n                if (trimmedEmails.length === 0) {\n                    validationErrors.push(\"At least one email address is required when email delivery is enabled\");\n                } else {\n                    const invalidEmails = trimmedEmails.filter(email => !validator.isEmail(email));\n                    if (invalidEmails.length > 0) {\n                        validationErrors.push(`Invalid email address(es): ${invalidEmails.join(', ')}`);\n                    }\n                }\n            }\n\n            // Validate Slack webhook URL if Slack is enabled\n            if (enableSlack) {\n                if (!trimmedSlackWebhook) {\n                    validationErrors.push(\"Slack webhook URL is required when Slack delivery is enabled\");\n                } else if (!validator.isURL(trimmedSlackWebhook, { require_protocol: true })) {\n                    validationErrors.push(\"Slack webhook must be a valid URL with protocol (https://)\");\n                }\n            }\n\n            // Validate webhook URL if webhook is enabled\n            if (enableWebhook) {\n                if (!trimmedWebhookUrl) {\n                    validationErrors.push(\"Webhook URL is required when webhook delivery is enabled\");\n                } else if (!validator.isURL(trimmedWebhookUrl, { require_protocol: true })) {\n                    validationErrors.push(\"Webhook URL must be a valid URL with protocol (http:// or https://)\");\n                }\n            }\n\n            // Check that at least one delivery method is enabled and configured\n            const hasValidDeliveryMethod =\n                (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n                (enableSlack && trimmedSlackWebhook && validator.isURL(trimmedSlackWebhook, { require_protocol: true })) ||\n                (enableWebhook && trimmedWebhookUrl && validator.isURL(trimmedWebhookUrl, { require_protocol: true }));\n\n            if (!hasValidDeliveryMethod) {\n                validationErrors.push(\"At least one valid delivery method must be configured\");\n            }\n\n            if (validationErrors.length > 0) {\n                setErrors(validationErrors);\n                return;\n            }\n\n            // Build the alarm data payload\n            const alarmPayload = {\n                logType,\n                message: messageMatchAll ? null : trimmedMessage,\n                level: levels,\n                environment: trimmedEnvironment,\n                ...(selectedCategories.length > 0 ? { categories: selectedCategories } : {}),\n                deliveryMethods: {} as any\n            };\n\n            // Add configured delivery methods\n            if (enableEmail) {\n                alarmPayload.deliveryMethods.email = {\n                    addresses: emailAddresses.map(email => email.trim()).filter(email => email)\n                };\n            }\n\n            if (enableSlack) {\n                alarmPayload.deliveryMethods.slack = {\n                    webhook: trimmedSlackWebhook\n                };\n            }\n\n            if (enableWebhook) {\n                alarmPayload.deliveryMethods.webhook = {\n                    url: trimmedWebhookUrl\n                };\n            }\n\n            // Make API call - either create or update\n            const resultAlarm = isEditMode\n                ? await updateProjectAlarm(token, projectId, editingAlarm.id, alarmPayload)\n                : await createAlarm(token, projectId, alarmPayload);\n\n            // Call the onSubmit callback with the alarm data\n            onSubmit(resultAlarm);\n\n        } catch (error) {\n            console.error(`Error ${isEditMode ? 'updating' : 'creating'} alarm:`, error);\n            setErrors([error instanceof Error ? error.message : 'An unexpected error occurred']);\n        } finally {\n            setIsSubmitting(false);\n        }\n    };\n\n    // Helper functions for log level management\n    const toggleLogLevel = (level: string) => {\n        setLevels(prevLevels =>\n            prevLevels.includes(level)\n                ? prevLevels.filter(l => l !== level)\n                : [...prevLevels, level]\n        );\n    };\n\n    const toggleCategory = (category: string) => {\n        setSelectedCategories(prevCategories => {\n            if (prevCategories.includes(category)) {\n                return prevCategories.filter(c => c !== category);\n            }\n\n            if (prevCategories.length >= MAX_SELECTED_CATEGORIES) {\n                return prevCategories;\n            }\n\n            return [...prevCategories, category];\n        });\n    };\n\n    // Helper functions for email management\n    const addEmailField = () => {\n        if (emailAddresses.length < 5) {\n            setEmailAddresses([...emailAddresses, '']);\n        }\n    };\n\n    const removeEmailField = (index: number) => {\n        setEmailAddresses(emailAddresses.filter((_, i) => i !== index));\n    };\n\n    const updateEmailField = (index: number, value: string) => {\n        const newEmails = [...emailAddresses];\n        newEmails[index] = value;\n        setEmailAddresses(newEmails);\n    };\n\n    const sendTestWebhook = async () => {\n        if (enableWebhook && webhookUrl.trim()) {\n            try {\n                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {\n                    method: 'POST',\n                    token,\n                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                })\n            } catch (error) {\n                console.error(error);\n                alert(\"Failed to send test webhook. Please check the webhook URL.\");\n            }\n        }\n    };\n\n    // Validation - at least one delivery method must be enabled and configured\n    const hasValidDeliveryMethod =\n        (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n        (enableSlack && slackWebhook.trim() && validator.isURL(slackWebhook.trim(), { require_protocol: true })) ||\n        (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n\n    return (\n        <form onSubmit={handleSubmit} className=\"space-y-4\">\n            {/* Error Display */}\n            {errors.length > 0 && (\n                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                    <ul className=\"list-disc list-inside space-y-1\">\n                        {errors.map((error, index) => (\n                            <li key={index}>{error}</li>\n                        ))}\n                    </ul>\n                </div>\n            )}\n            <div>\n                <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>\n                <select\n                    id=\"alarm-log-type\"\n                    value={logType}"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896114807,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01QhyFdwTmfBJKFTR6Q4vezM",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01VwP5hnAufZ5XEM8RmbCrNQ",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "offset": 360,
+                        "limit": 50
+                    },
+                    "output": "Lines 361-410 of 731 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:\n    };\n\n    const sendTestWebhook = async () => {\n        if (enableWebhook && webhookUrl.trim()) {\n            try {\n                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {\n                    method: 'POST',\n                    token,\n                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                })\n            } catch (error) {\n                console.error(error);\n                alert(\"Failed to send test webhook. Please check the webhook URL.\");\n            }\n        }\n    };\n\n    // Validation - at least one delivery method must be enabled and configured\n    const hasValidDeliveryMethod =\n        (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n        (enableSlack && slackWebhook.trim() && validator.isURL(slackWebhook.trim(), { require_protocol: true })) ||\n        (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n\n    return (\n        <form onSubmit={handleSubmit} className=\"space-y-4\">\n            {/* Error Display */}\n            {errors.length > 0 && (\n                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                    <ul className=\"list-disc list-inside space-y-1\">\n                        {errors.map((error, index) => (\n                            <li key={index}>{error}</li>\n                        ))}\n                    </ul>\n                </div>\n            )}\n            <div>\n                <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>\n                <select\n                    id=\"alarm-log-type\"\n                    value={logType}\n                    onChange={(e) => setLogType(e.target.value)}\n                    required\n                    className=\"w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground\"\n                >\n                    <option value=\"application\">Application Log</option>\n                    <option value=\"system\">System Log</option>\n                </select>\n                <p className=\"text-xs text-neutral mt-1\">\n                    Choose which type of logs this alarm should monitor.\n                </p>"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896121044,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01V1EvZBwxn4YinqpU7qTa3D",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Now let me check what toast library is being used in the project:"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01GLCX7qQB9WNyMVmG763zzH",
+                    "toolName": "Grep",
+                    "status": "SUCCESS",
+                    "input": {
+                        "pattern": "toast|useToast|Toaster",
+                        "type": "tsx",
+                        "output_mode": "files_with_matches"
+                    },
+                    "output": "Found 2 files\n/Users/chrisreeves/Development/keepwatch-web/app/components/ui/toast.tsx\n/Users/chrisreeves/Development/keepwatch-web/app/routes/project.$projectId.tsx"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01TgjKkqR18KiHftxRtspLiQ",
+                    "toolName": "Grep",
+                    "status": "SUCCESS",
+                    "input": {
+                        "pattern": "sonner",
+                        "output_mode": "files_with_matches"
+                    },
+                    "output": "Found 2 files\n/Users/chrisreeves/Development/keepwatch-web/.idea/zencoder/chats/25d0225f-ff16-49a2-8b88-2aad3a3e823c.json\n/Users/chrisreeves/Development/keepwatch-web/.idea/zencoder/chats/e7f5198e-1f37-444a-bb86-03c81a0c76ac.json"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896125886,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01K3NVPBAZL4SswebrKg7Bbj",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01T6MhM7gfKqpELSxjXerXHx",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/ui/toast.tsx"
+                    },
+                    "output": "Lines 1-87 of 87 from /Users/chrisreeves/Development/keepwatch-web/app/components/ui/toast.tsx:\nimport { useEffect, useState } from \"react\";\nimport { CheckCircle, X, AlertCircle } from \"lucide-react\";\n\nexport interface Toast {\n    id: string;\n    message: string;\n    type: \"success\" | \"error\";\n}\n\ninterface ToastProps {\n    toast: Toast;\n    onClose: (id: string) => void;\n}\n\nfunction ToastItem({ toast, onClose }: ToastProps) {\n    useEffect(() => {\n        const timer = setTimeout(() => {\n            onClose(toast.id);\n        }, 4000);\n\n        return () => clearTimeout(timer);\n    }, [toast.id, onClose]);\n\n    return (\n        <div\n            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${\n                toast.type === \"success\"\n                    ? \"bg-green-50 border-green-200\"\n                    : \"bg-red-50 border-red-200\"\n            } animate-slide-in`}\n        >\n            {toast.type === \"success\" ? (\n                <CheckCircle className=\"h-5 w-5 text-green-600 shrink-0\" />\n            ) : (\n                <AlertCircle className=\"h-5 w-5 text-red-600 shrink-0\" />\n            )}\n            <p\n                className={`text-sm font-medium ${\n                    toast.type === \"success\" ? \"text-green-800\" : \"text-red-800\"\n                }`}\n            >\n                {toast.message}\n            </p>\n            <button\n                onClick={() => onClose(toast.id)}\n                className={`ml-auto ${\n                    toast.type === \"success\"\n                        ? \"text-green-600 hover:text-green-700\"\n                        : \"text-red-600 hover:text-red-700\"\n                }`}\n            >\n                <X className=\"h-4 w-4\" />\n            </button>\n        </div>\n    );\n}\n\ninterface ToastContainerProps {\n    toasts: Toast[];\n    onClose: (id: string) => void;\n}\n\nexport function ToastContainer({ toasts, onClose }: ToastContainerProps) {\n    return (\n        <div className=\"fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-md\">\n            {toasts.map((toast) => (\n                <ToastItem key={toast.id} toast={toast} onClose={onClose} />\n            ))}\n        </div>\n    );\n}\n\nexport function useToast() {\n    const [toasts, setToasts] = useState<Toast[]>([]);\n\n    const showToast = (message: string, type: \"success\" | \"error\" = \"success\") => {\n        const id = Math.random().toString(36).substring(7);\n        setToasts((prev) => [...prev, { id, message, type }]);\n    };\n\n    const closeToast = (id: string) => {\n        setToasts((prev) => prev.filter((toast) => toast.id !== id));\n    };\n\n    return { toasts, showToast, closeToast };\n}\n"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01JQqyXt5JtJ5C46FYBjnx4R",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/routes/project.$projectId.tsx",
+                        "limit": 100
+                    },
+                    "output": "Lines 1-100 of 448 from /Users/chrisreeves/Development/keepwatch-web/app/routes/project.$projectId.tsx:\nimport type { Route } from \"./+types/project.$projectId\";\nimport { getAuthToken } from \"~/lib/auth.server\";\nimport { fetchProject, createAPIKey, deleteAPIKey, updateAPIKey, deleteProject, getCurrentUser, removeUserFromProject, updateProject, sendProjectInvite, type Project } from \"~/lib/api\";\nimport { useLoaderData, Link, useActionData, useNavigate, useSearchParams } from \"react-router\";\nimport { DashboardHeader } from \"~/components/DashboardHeader\";\nimport { Button } from \"~/components/ui/button\";\nimport { ArrowLeft } from \"lucide-react\";\nimport { useState, useEffect } from \"react\";\nimport { redirect } from \"react-router\";\nimport { getUserRole, hasPermission } from \"~/components/project/utils\";\nimport { OverviewTab } from \"~/components/project/tabs/OverviewTab\";\nimport { APIKeysTab } from \"~/components/project/tabs/APIKeysTab\";\nimport { TeamTab } from \"~/components/project/tabs/TeamTab\";\nimport { SettingsTab } from \"~/components/project/tabs/SettingsTab\";\nimport { LogsTab } from \"~/components/project/tabs/LogsTab\";\nimport { CreateAPIKeyDialog } from \"~/components/project/dialogs/CreateAPIKeyDialog\";\nimport { NewAPIKeyDialog } from \"~/components/project/dialogs/NewAPIKeyDialog\";\nimport { DeleteAPIKeyDialog } from \"~/components/project/dialogs/DeleteAPIKeyDialog\";\nimport { ConfigureAPIKeyDialog } from \"~/components/project/dialogs/ConfigureAPIKeyDialog\";\nimport { EditProjectDialog } from \"~/components/project/dialogs/EditProjectDialog\";\nimport { RemoveUserDialog } from \"~/components/project/dialogs/RemoveUserDialog\";\nimport { DeleteProjectDialog } from \"~/components/project/dialogs/DeleteProjectDialog\";\nimport { ToastContainer, useToast } from \"~/components/ui/toast\";\n\nexport function meta({ params }: Route.MetaArgs) {\n    return [\n        { title: `Project ${params.projectId} - KeepWatch` },\n        { name: \"description\", content: \"Project details and management\" },\n    ];\n}\n\nexport async function loader({ request, params }: Route.LoaderArgs) {\n    const token = getAuthToken(request);\n\n    if (!token) {\n        throw redirect(\"/login\");\n    }\n\n    const { projectId } = params;\n\n    try {\n        // Fetch current user and project\n        const [currentUser, project] = await Promise.all([\n            getCurrentUser(token),\n            fetchProject(token, projectId),\n        ]);\n\n        const userId = currentUser._id;\n        const userRole = getUserRole(project, userId);\n\n        return { project, token, userId, userRole };\n    } catch (error) {\n        console.error(\"Failed to fetch project:\", error);\n        throw new Response(\"Failed to load project\", { status: 500 });\n    }\n}\n\nexport async function action({ request, params }: Route.ActionArgs) {\n    const token = getAuthToken(request);\n\n    if (!token) {\n        return { error: \"Unauthorized\" };\n    }\n\n    const { projectId } = params;\n    const formData = await request.formData();\n    const action = formData.get(\"_action\") as string;\n\n    if (action === \"createAPIKey\") {\n        try {\n            const result = await createAPIKey(token, projectId);\n            return { success: true, apiKey: result.apiKey };\n        } catch (error) {\n            return {\n                error: error instanceof Error ? error.message : \"Failed to create API key\",\n            };\n        }\n    }\n\n    if (action === \"updateAPIKey\") {\n        const apiKeyId = formData.get(\"apiKeyId\") as string;\n        const constraintsStr = formData.get(\"constraints\") as string;\n\n        try {\n            const constraints = JSON.parse(constraintsStr);\n            \n            const requestsPerMinute = formData.get(\"requestsPerMinute\");\n            const requestsPerHour = formData.get(\"requestsPerHour\");\n            const requestsPerDay = formData.get(\"requestsPerDay\");\n            const expirationDate = formData.get(\"expirationDate\");\n\n            if (requestsPerMinute || requestsPerHour || requestsPerDay) {\n                constraints.rateLimits = {\n                    requestsPerMinute: requestsPerMinute ? Number(requestsPerMinute) : undefined,\n                    requestsPerHour: requestsPerHour ? Number(requestsPerHour) : undefined,\n                    requestsPerDay: requestsPerDay ? Number(requestsPerDay) : undefined,\n                };\n            }\n\n            if (expirationDate) {"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896131200,
+            "isInternal": false
+        },
+        {
+            "id": "msg_017AeNqzcR8crttU6sbUFtwi",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Perfect! I can see the project uses a custom `useToast` hook. Now I need to check how the AddAlarmForm is used in the parent component to see if we can pass the toast functionality down, or if we need to add it directly to the form."
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_014ZUSm4nBsJL6kuFnvYt62J",
+                    "toolName": "Grep",
+                    "status": "SUCCESS",
+                    "input": {
+                        "pattern": "AddAlarmForm",
+                        "output_mode": "files_with_matches"
+                    },
+                    "output": "Found 7 files\n/Users/chrisreeves/Development/keepwatch-web/.idea/zencoder/chats/25d0225f-ff16-49a2-8b88-2aad3a3e823c.json\n/Users/chrisreeves/Development/keepwatch-web/.idea/zencoder/chats/d58517ec-a748-4608-bf11-975cf51d5dad.json\n/Users/chrisreeves/Development/keepwatch-web/.idea/zencoder/chats/e7f5198e-1f37-444a-bb86-03c81a0c76ac.json\n/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx\n/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/ApplicationLogsTab.tsx\n/Users/chrisreeves/Development/keepwatch-web/repo.md"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896134840,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01NG8A7XU9eNKsrYdU5tcopZ",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_012bUp2rMH1vJPLFcMbsgUmY",
+                    "toolName": "Grep",
+                    "status": "SUCCESS",
+                    "input": {
+                        "pattern": "AddAlarmForm|useToast",
+                        "glob": "**/AlarmsTab.tsx",
+                        "output_mode": "content",
+                        "-n": true
+                    },
+                    "output": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx:7:import { AddAlarmForm } from \"~/components/project/dialogs/AddAlarmForm\";\n/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx:225:                        <AddAlarmForm\n/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx:250:                            <AddAlarmForm"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896142321,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01Riq5dhYDE4E7Wbq4rJJwFK",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Let me check if the parent component already has toast functionality:"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01FEKeSozuKS9LZGkAoQZ7dE",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx",
+                        "limit": 50
+                    },
+                    "output": "Lines 1-50 of 272 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx:\nimport { useState, useEffect } from \"react\";\nimport { useLoaderData } from \"react-router\";\nimport { Activity, Bell, Trash2 } from \"lucide-react\";\nimport { Button } from \"~/components/ui/button\";\nimport { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"~/components/ui/card\";\nimport { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody } from \"~/components/ui/dialog\";\nimport { AddAlarmForm } from \"~/components/project/dialogs/AddAlarmForm\";\nimport { AlarmCard } from \"../cards/AlarmCard\";\nimport { fetchProjectAlarms, deleteProjectAlarm, type Project, type Alarm } from \"~/lib/api\";\nimport type { loader } from \"~/routes/project.$projectId\";\n\nexport function AlarmsTab({ project, canCreateAlarm, canDeleteAlarm, canUpdateAlarm, userEmail }: { project: Project; canCreateAlarm: boolean; canDeleteAlarm: boolean; canUpdateAlarm: boolean; userEmail?: string }) {\n    const { token } = useLoaderData<typeof loader>();\n    const [alarms, setAlarms] = useState<Alarm[]>([]);\n    const [isLoading, setIsLoading] = useState(true);\n    const [error, setError] = useState<string | null>(null);\n    const [deletingAlarmId, setDeletingAlarmId] = useState<string | null>(null);\n    const [isClearingAll, setIsClearingAll] = useState(false);\n    const [showUpdateAlarmModal, setShowUpdateAlarmModal] = useState(false);\n    const [showAddAlarmModal, setShowAddAlarmModal] = useState(false);\n    const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);\n\n    // Fetch alarms when component mounts\n    useEffect(() => {\n        const loadAlarms = async () => {\n            try {\n                setIsLoading(true);\n                setError(null);\n                const response = await fetchProjectAlarms(token, project.projectId);\n                setAlarms(response.alarms);\n            } catch (err) {\n                console.error('Error fetching alarms:', err);\n                setError(err instanceof Error ? err.message : 'Failed to load alarms');\n            } finally {\n                setIsLoading(false);\n            }\n        };\n\n        loadAlarms();\n    }, [token, project.projectId]);\n\n    // Delete alarm function\n    const handleDeleteAlarm = async (alarmId: string) => {\n        if (!canDeleteAlarm) return;\n\n        try {\n            setDeletingAlarmId(alarmId);\n            await deleteProjectAlarm(token, project.projectId, alarmId);\n\n            // Remove the deleted alarm from the state"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896145850,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01KysqrNf6ngdVZtkTnq89uD",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Now let me check if there's a showToast prop being passed to AddAlarmForm:"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_0151koF5Y3jyt6dx5mvvZF6j",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx",
+                        "offset": 220,
+                        "limit": 50
+                    },
+                    "output": "Lines 221-270 of 272 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/tabs/AlarmsTab.tsx:\n                            Set up a new alarm to monitor your logs.\n                        </DialogDescription>\n                    </DialogHeader>\n                    <DialogBody>\n                        <AddAlarmForm\n                            projectId={project.projectId}\n                            token={token}\n                            initialMessage=\"\"\n                            initialLevel=\"ERROR\"\n                            initialEnvironment=\"\"\n                            userEmail={userEmail}\n                            onSubmit={handleAlarmCreateSubmit}\n                            onCancel={() => setShowAddAlarmModal(false)}\n                        />\n                    </DialogBody>\n                </DialogContent>\n            </Dialog>\n\n            {/* Update Alarm Modal */}\n            <Dialog open={showUpdateAlarmModal} onOpenChange={setShowUpdateAlarmModal}>\n                <DialogContent onClose={() => setShowUpdateAlarmModal(false)}>\n                    <DialogHeader>\n                        <DialogTitle>Update Alarm</DialogTitle>\n                        <DialogDescription>\n                            Modify the alarm configuration.\n                        </DialogDescription>\n                    </DialogHeader>\n                    <DialogBody>\n                        {editingAlarm && (\n                            <AddAlarmForm\n                                projectId={project.projectId}\n                                token={token}\n                                initialMessage={editingAlarm?.message || ''}\n                                initialLevel={editingAlarm?.level || 'INFO'}\n                                initialEnvironment={editingAlarm?.environment || ''}\n                                userEmail={userEmail}\n                                editingAlarm={editingAlarm}\n                                onSubmit={handleAlarmUpdateSubmit}\n                                onCancel={() => {\n                                    setShowUpdateAlarmModal(false);\n                                    setEditingAlarm(null);\n                                }}\n                            />\n                        )}\n                    </DialogBody>\n                </DialogContent>\n            </Dialog>\n        </>\n    );\n}"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896150011,
+            "isInternal": false
+        },
+        {
+            "id": "msg_017WZ3z5BpxFaac2tiTobUZv",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I can see that the parent component doesn't currently use toast. The simplest approach is to add the toast functionality directly to the AddAlarmForm component. Let me update the `sendTestWebhook` function to show a toast notification:"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01VPPqoVbBiwQpjS1gPZ5PYc",
+                    "toolName": "Edit",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "old_string": "import { useState, useEffect, useRef } from \"react\";\nimport { Button } from \"~/components/ui/button\";\nimport { Input } from \"~/components/ui/input\";\nimport { Label } from \"~/components/ui/label\";\nimport { Checkbox } from \"~/components/ui/checkbox\";\nimport { Popover, PopoverContent, PopoverTrigger } from \"~/components/ui/popover\";\nimport { Filter, Activity } from \"lucide-react\";\nimport {\n    createAlarm,\n    updateProjectAlarm,\n    fetchEnvironments,\n    fetchCategories,\n    type Alarm,\n    type EnvironmentOption,\n    type CategoryOption,\n    authenticatedFetch\n} from \"~/lib/api\";",
+                        "new_string": "import { useState, useEffect, useRef } from \"react\";\nimport { Button } from \"~/components/ui/button\";\nimport { Input } from \"~/components/ui/input\";\nimport { Label } from \"~/components/ui/label\";\nimport { Checkbox } from \"~/components/ui/checkbox\";\nimport { Popover, PopoverContent, PopoverTrigger } from \"~/components/ui/popover\";\nimport { Filter, Activity } from \"lucide-react\";\nimport {\n    createAlarm,\n    updateProjectAlarm,\n    fetchEnvironments,\n    fetchCategories,\n    type Alarm,\n    type EnvironmentOption,\n    type CategoryOption,\n    authenticatedFetch\n} from \"~/lib/api\";\nimport { ToastContainer, useToast } from \"~/components/ui/toast\";"
+                    },
+                    "output": "    14→    type EnvironmentOption,\n    15→    type CategoryOption,\n    16→    authenticatedFetch\n    17→} from \"~/lib/api\";\n    18→import { ToastContainer, useToast } from \"~/components/ui/toast\";\n    19→\n    20→const MAX_SELECTED_CATEGORIES = 5;\n    21→import validator from \"validator\";\n    22→"
+                },
+                {
+                    "type": "codeHunk",
+                    "lineBasedDiff": "--- /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n+++ /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n@@ -15,6 +15,7 @@\n     type CategoryOption,\n     authenticatedFetch\n } from \"~/lib/api\";\n+import { ToastContainer, useToast } from \"~/components/ui/toast\";\n \n const MAX_SELECTED_CATEGORIES = 5;\n import validator from \"validator\";",
+                    "refToolCallId": "toolu_01VPPqoVbBiwQpjS1gPZ5PYc",
+                    "language": "typescript jsx"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896154525,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01SJh2PopUwFFTctPCTjuyzs",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01W4xxKAEqqEVHQpADxvi4g9",
+                    "toolName": "Edit",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "old_string": "    // Error and loading states\n    const [errors, setErrors] = useState<string[]>([]);\n    const [isSubmitting, setIsSubmitting] = useState(false);\n    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);\n    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);\n    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);\n    const [isLoadingCategories, setIsLoadingCategories] = useState(false);\n    const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);\n    const hasLoadedCategoriesRef = useRef(false);\n    const abortControllerRef = useRef<AbortController | null>(null);",
+                        "new_string": "    const { toasts, showToast, closeToast } = useToast();\n\n    const [errors, setErrors] = useState<string[]>([]);\n    const [isSubmitting, setIsSubmitting] = useState(false);\n    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);\n    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);\n    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);\n    const [isLoadingCategories, setIsLoadingCategories] = useState(false);\n    const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);\n    const hasLoadedCategoriesRef = useRef(false);\n    const abortControllerRef = useRef<AbortController | null>(null);"
+                    },
+                    "output": "    87→    const [webhookUrl, setWebhookUrl] = useState(\n    88→        isEditMode ? (editingAlarm.deliveryMethods?.webhook?.url || '') : ''\n    89→    );\n    90→\n    91→    const { toasts, showToast, closeToast } = useToast();\n    92→\n    93→    const [errors, setErrors] = useState<string[]>([]);\n    94→    const [isSubmitting, setIsSubmitting] = useState(false);\n    95→    const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);\n    96→    const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);"
+                },
+                {
+                    "type": "codeHunk",
+                    "lineBasedDiff": "--- /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n+++ /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n@@ -88,7 +88,8 @@\n         isEditMode ? (editingAlarm.deliveryMethods?.webhook?.url || '') : ''\n     );\n \n-    // Error and loading states\n+    const { toasts, showToast, closeToast } = useToast();\n+\n     const [errors, setErrors] = useState<string[]>([]);\n     const [isSubmitting, setIsSubmitting] = useState(false);\n     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);",
+                    "refToolCallId": "toolu_01W4xxKAEqqEVHQpADxvi4g9",
+                    "language": "typescript jsx"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896170172,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01Cw98fHgEv6QrxQCPQQPwYq",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01FXj1tt1z7gsY3dZZR6Za8f",
+                    "toolName": "Edit",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "old_string": "    const sendTestWebhook = async () => {\n        if (enableWebhook && webhookUrl.trim()) {\n            try {\n                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {\n                    method: 'POST',\n                    token,\n                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                })\n            } catch (error) {\n                console.error(error);\n                alert(\"Failed to send test webhook. Please check the webhook URL.\");\n            }\n        }\n    };",
+                        "new_string": "    const sendTestWebhook = async () => {\n        if (enableWebhook && webhookUrl.trim()) {\n            try {\n                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {\n                    method: 'POST',\n                    token,\n                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                })\n                showToast(\"Test webhook sent successfully\", \"success\");\n            } catch (error) {\n                console.error(error);\n                showToast(\"Failed to send test webhook. Please check the webhook URL.\", \"error\");\n            }\n        }\n    };"
+                    },
+                    "output": "   369→                    method: 'POST',\n   370→                    token,\n   371→                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n   372→                })\n   373→                showToast(\"Test webhook sent successfully\", \"success\");\n   374→            } catch (error) {\n   375→                console.error(error);\n   376→                showToast(\"Failed to send test webhook. Please check the webhook URL.\", \"error\");\n   377→            }\n   378→        }\n   379→    };\n   380→"
+                },
+                {
+                    "type": "codeHunk",
+                    "lineBasedDiff": "--- /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n+++ /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n@@ -370,9 +370,10 @@\n                     token,\n                     body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),\n                 })\n+                showToast(\"Test webhook sent successfully\", \"success\");\n             } catch (error) {\n                 console.error(error);\n-                alert(\"Failed to send test webhook. Please check the webhook URL.\");\n+                showToast(\"Failed to send test webhook. Please check the webhook URL.\", \"error\");\n             }\n         }\n     };",
+                    "refToolCallId": "toolu_01FXj1tt1z7gsY3dZZR6Za8f",
+                    "language": "typescript jsx"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896177178,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01MMqD42cvsg5WUgRKNh7BsX",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Now I need to add the ToastContainer to the form's return statement. Let me find where the form returns:"
+                },
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01SkZ1bsoEFWzricrXeDpKEg",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "offset": 380,
+                        "limit": 20
+                    },
+                    "output": "Lines 381-400 of 734 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:\n    // Validation - at least one delivery method must be enabled and configured\n    const hasValidDeliveryMethod =\n        (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||\n        (enableSlack && slackWebhook.trim() && validator.isURL(slackWebhook.trim(), { require_protocol: true })) ||\n        (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n\n    return (\n        <form onSubmit={handleSubmit} className=\"space-y-4\">\n            {/* Error Display */}\n            {errors.length > 0 && (\n                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                    <ul className=\"list-disc list-inside space-y-1\">\n                        {errors.map((error, index) => (\n                            <li key={index}>{error}</li>\n                        ))}\n                    </ul>\n                </div>\n            )}\n            <div>\n                <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896183176,
+            "isInternal": false
+        },
+        {
+            "id": "msg_012NseZNHTDJ9FvTGSScn9bx",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01Mxu9BksLxShYkxGdc45Hix",
+                    "toolName": "Read",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "offset": 720
+                    },
+                    "output": "Lines 721-734 of 734 from /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:\n                        !hasValidDeliveryMethod ||\n                        isSubmitting\n                    }\n                >\n                    {isSubmitting\n                        ? (isEditMode ? \"Updating Alarm...\" : \"Creating Alarm...\")\n                        : (isEditMode ? \"Update Alarm\" : \"Create Alarm\")\n                    }\n                </Button>\n            </div>\n        </form>\n    );\n}\n"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896187891,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01JdmV3DWsEnkvwnzzoarCwk",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01DgwWL9HKeu39HV7gmSmAvK",
+                    "toolName": "Edit",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "old_string": "    return (\n        <form onSubmit={handleSubmit} className=\"space-y-4\">\n            {/* Error Display */}\n            {errors.length > 0 && (\n                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                    <ul className=\"list-disc list-inside space-y-1\">\n                        {errors.map((error, index) => (\n                            <li key={index}>{error}</li>\n                        ))}\n                    </ul>\n                </div>\n            )}",
+                        "new_string": "    return (\n        <>\n            <ToastContainer toasts={toasts} onClose={closeToast} />\n            <form onSubmit={handleSubmit} className=\"space-y-4\">\n                {errors.length > 0 && (\n                    <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n                        <ul className=\"list-disc list-inside space-y-1\">\n                            {errors.map((error, index) => (\n                                <li key={index}>{error}</li>\n                            ))}\n                        </ul>\n                    </div>\n                )}"
+                    },
+                    "output": "   384→        (enableSlack && slackWebhook.trim() && validator.isURL(slackWebhook.trim(), { require_protocol: true })) ||\n   385→        (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n   386→\n   387→    return (\n   388→        <>\n   389→            <ToastContainer toasts={toasts} onClose={closeToast} />\n   390→            <form onSubmit={handleSubmit} className=\"space-y-4\">\n   391→                {errors.length > 0 && (\n   392→                    <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n   393→                        <ul className=\"list-disc list-inside space-y-1\">\n   394→                            {errors.map((error, index) => (\n   395→                                <li key={index}>{error}</li>\n   396→                            ))}\n   397→                        </ul>\n   398→                    </div>\n   399→                )}\n   400→            <div>\n   401→                <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>\n   402→                <select\n   403→                    id=\"alarm-log-type\""
+                },
+                {
+                    "type": "codeHunk",
+                    "lineBasedDiff": "--- /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n+++ /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n@@ -385,17 +385,18 @@\n         (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));\n \n     return (\n-        <form onSubmit={handleSubmit} className=\"space-y-4\">\n-            {/* Error Display */}\n-            {errors.length > 0 && (\n-                <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n-                    <ul className=\"list-disc list-inside space-y-1\">\n-                        {errors.map((error, index) => (\n-                            <li key={index}>{error}</li>\n-                        ))}\n-                    </ul>\n-                </div>\n-            )}\n+        <>\n+            <ToastContainer toasts={toasts} onClose={closeToast} />\n+            <form onSubmit={handleSubmit} className=\"space-y-4\">\n+                {errors.length > 0 && (\n+                    <div className=\"bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm\">\n+                        <ul className=\"list-disc list-inside space-y-1\">\n+                            {errors.map((error, index) => (\n+                                <li key={index}>{error}</li>\n+                            ))}\n+                        </ul>\n+                    </div>\n+                )}\n             <div>\n                 <Label htmlFor=\"alarm-log-type\" className=\"mb-2 block\">Log Type *</Label>\n                 <select",
+                    "refToolCallId": "toolu_01DgwWL9HKeu39HV7gmSmAvK",
+                    "language": "typescript jsx"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896194441,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01AbeUw92jGZRbdwda2vMb3e",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "cliToolCall",
+                    "toolCallId": "toolu_01J1GmQju1Et2HBqwQdcKCbA",
+                    "toolName": "Edit",
+                    "status": "SUCCESS",
+                    "input": {
+                        "file_path": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                        "old_string": "                </Button>\n            </div>\n        </form>\n    );\n}",
+                        "new_string": "                </Button>\n            </div>\n        </form>\n        </>\n    );\n}"
+                    },
+                    "output": "   729→                    }\n   730→                </Button>\n   731→            </div>\n   732→        </form>\n   733→        </>\n   734→    );\n   735→}"
+                },
+                {
+                    "type": "codeHunk",
+                    "lineBasedDiff": "--- /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n+++ /Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx\n@@ -730,6 +730,7 @@\n                 </Button>\n             </div>\n         </form>\n+        </>\n     );\n }\n ",
+                    "refToolCallId": "toolu_01J1GmQju1Et2HBqwQdcKCbA",
+                    "language": "typescript jsx"
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891"
+            },
+            "createdAt": 1762896198773,
+            "isInternal": false
+        },
+        {
+            "id": "msg_01FNSFGoSMjpmfj6MDSstPry",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Perfect! I've successfully added toast notifications to the test webhook functionality. The changes include:\n\n1. **Imported the toast components** at `/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:18`\n2. **Added the useToast hook** at `/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:91`\n3. **Updated sendTestWebhook function** at `/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:373-376` to show success/error toasts\n4. **Added ToastContainer** at `/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx:389` to render the toasts\n\nNow when users send a test webhook, they'll see:\n- A **success toast** (green) if the webhook is sent successfully\n- An **error toast** (red) if the webhook fails"
+                },
+                {
+                    "type": "codePatch",
+                    "diffs": [
+                        {
+                            "path": "app/components/project/dialogs/AddAlarmForm.tsx",
+                            "fsPath": "/Users/chrisreeves/Development/keepwatch-web/app/components/project/dialogs/AddAlarmForm.tsx",
+                            "patch": "@@ -579,16 +579,82 @@\n ib/api%22;\n+%0Aimport %7B ToastContainer, useToast %7D from %22~/components/ui/toast%22;\n %0A%0Aconst \n@@ -3343,35 +3343,62 @@\n     \n-// Error and loading states\n+const %7B toasts, showToast, closeToast %7D = useToast();%0A\n %0A   \n@@ -14772,16 +14772,88 @@\n      %7D)%0A\n+                showToast(%22Test webhook sent successfully%22, %22success%22);%0A\n         \n@@ -14932,12 +14932,16 @@\n     \n-aler\n+showToas\n t(%22F\n@@ -14998,16 +14998,25 @@\n ok URL.%22\n+, %22error%22\n );%0A     \n@@ -15505,16 +15505,99 @@\n eturn (%0A\n+        %3C%3E%0A            %3CToastContainer toasts=%7Btoasts%7D onClose=%7BcloseToast%7D /%3E%0A    \n         \n@@ -15661,42 +15661,16 @@\n     \n-    %7B/* Error Display */%7D%0A\n         \n     \n@@ -15657,36 +15657,32 @@\n                 \n-    \n %7Berrors.length %3E\n@@ -15681,32 +15681,36 @@\n length %3E 0 && (%0A\n+    \n                 \n@@ -15873,16 +15873,20 @@\n         \n+    \n %3Cul clas\n@@ -15942,32 +15942,36 @@\n                 \n+    \n %7Berrors.map((err\n@@ -16014,16 +16014,20 @@\n         \n+  \n+  \n %3Cli key=\n@@ -16063,32 +16063,36 @@\n                 \n+    \n ))%7D%0A            \n@@ -16103,14 +16103,22 @@\n     \n+   \n+ \n %3C/ul%3E%0A\n+    \n     \n@@ -16128,32 +16128,36 @@\n          %3C/div%3E%0A\n+    \n             )%7D%0A \n@@ -33763,16 +33763,28 @@\n %3C/form%3E%0A\n+        %3C/%3E%0A\n     );%0A%7D\n",
+                            "isNew": false,
+                            "isApplied": true,
+                            "timestamp": 1762896160483
+                        }
+                    ]
+                }
+            ],
+            "context": {
+                "author": "Code agent",
+                "operationId": "8eea8239-1d94-47e0-89bd-459295eb64b7",
+                "cliSessionId": "ffc3ec40-2abb-4cc0-a077-322819422891",
+                "usageStatistics": {
+                    "llmCallsUsedForAnswer": 16.0,
+                    "llmCallsUsedTotal": 156.0,
+                    "llmCallsLimit": 280.0,
+                    "limitRenewalMillisecondTimestamp": 1762930800000
+                }
+            },
+            "createdAt": 1762896201759,
+            "isInternal": false
+        }
+    ],
+    "isAgent": true,
+    "isNameGenerated": true,
+    "isCustomAgent": false,
+    "isUnitTestsAgent": false,
+    "isE2EAgent": false,
+    "isWebDevAgent": false,
+    "isQnaAgent": false,
+    "isRepoInfoAgent": false,
+    "model": "default",
+    "agentsRuntime": "zen-cli"
+}
+}

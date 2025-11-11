@@ -10,7 +10,7 @@ import { Label } from "~/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "~/components/ui/pagination";
-import { AddAlarmForm } from "~/components/AddAlarmForm";
+import { AddAlarmForm } from "~/components/project/dialogs/AddAlarmForm";
 import { LogCard } from "../cards/LogCard";
 import { formatNumber, getPageNumbers, getLogLevelStyle } from "../utils";
 import { searchLogs, fetchEnvironments, fetchCategories, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption } from "~/lib/api";

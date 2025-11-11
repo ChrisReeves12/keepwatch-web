@@ -4,7 +4,7 @@ import { Activity, Bell, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody } from "~/components/ui/dialog";
-import { AddAlarmForm } from "~/components/AddAlarmForm";
+import { AddAlarmForm } from "~/components/project/dialogs/AddAlarmForm";
 import { AlarmCard } from "../cards/AlarmCard";
 import { fetchProjectAlarms, deleteProjectAlarm, type Project, type Alarm } from "~/lib/api";
 import type { loader } from "~/routes/project.$projectId";

@@ -5,7 +5,17 @@ import { Label } from "~/components/ui/label";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Filter, Activity } from "lucide-react";
-import { createAlarm, updateProjectAlarm, fetchEnvironments, fetchCategories, type Alarm, type EnvironmentOption, type CategoryOption } from "~/lib/api";
+import {
+    createAlarm,
+    updateProjectAlarm,
+    fetchEnvironments,
+    fetchCategories,
+    type Alarm,
+    type EnvironmentOption,
+    type CategoryOption,
+    authenticatedFetch
+} from "~/lib/api";
+import { ToastContainer, useToast } from "~/components/ui/toast";
 
 const MAX_SELECTED_CATEGORIES = 5;
 import validator from "validator";
@@ -78,7 +88,8 @@ export function AddAlarmForm({
         isEditMode ? (editingAlarm.deliveryMethods?.webhook?.url || '') : ''
     );
 
-    // Error and loading states
+    const { toasts, showToast, closeToast } = useToast();
+
     const [errors, setErrors] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [availableEnvironments, setAvailableEnvironments] = useState<EnvironmentOption[]>([]);
@@ -351,6 +362,24 @@ export function AddAlarmForm({
         setEmailAddresses(newEmails);
     };
 
+    const sendTestWebhook = async (e: any) => {
+        e.preventDefault();
+
+        if (enableWebhook && webhookUrl.trim()) {
+            try {
+                await authenticatedFetch(`/v1/projects/${projectId}/alarms/test-webhook`, {
+                    method: 'POST',
+                    token,
+                    body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),
+                })
+                showToast("Test webhook sent successfully", "success");
+            } catch (error) {
+                console.error(error);
+                showToast("Failed to send test webhook. Please check the webhook URL.", "error");
+            }
+        }
+    };
+
     // Validation - at least one delivery method must be enabled and configured
     const hasValidDeliveryMethod =
         (enableEmail && emailAddresses.some(email => email.trim() && validator.isEmail(email.trim()))) ||
@@ -358,17 +387,18 @@ export function AddAlarmForm({
         (enableWebhook && webhookUrl.trim() && validator.isURL(webhookUrl.trim(), { require_protocol: true }));
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Error Display */}
-            {errors.length > 0 && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm">
-                    <ul className="list-disc list-inside space-y-1">
-                        {errors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+        <>
+            <ToastContainer toasts={toasts} onClose={closeToast} />
+            <form onSubmit={handleSubmit} className="space-y-4">
+                {errors.length > 0 && (
+                    <div className="bg-destructive/10 border border-destructive/20 text-destructive dark:text-destructive-foreground px-3 py-2 rounded-md text-sm">
+                        <ul className="list-disc list-inside space-y-1">
+                            {errors.map((error, index) => (
+                                <li key={index}>{error}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             <div>
                 <Label htmlFor="alarm-log-type" className="mb-2 block">Log Type *</Label>
                 <select
@@ -656,12 +686,16 @@ export function AddAlarmForm({
                         </div>
                         {enableWebhook && (
                             <div className="ml-6">
-                                <Input
-                                    type="url"
-                                    value={webhookUrl}
-                                    onChange={(e) => setWebhookUrl(e.target.value)}
-                                    placeholder="https://your-api.com/webhook"
-                                />
+                                <div className="flex gap-2 items-center">
+                                    <Input
+                                        type="url"
+                                        value={webhookUrl}
+                                        onChange={(e) => setWebhookUrl(e.target.value)}
+                                        placeholder="https://your-api.com/webhook"
+                                    />
+                                    <button type="button" onClick={sendTestWebhook} className="text-xs text-white bg-brand px-3 py-1 rounded-sm">
+                                        Send Test Notification</button>
+                                </div>
                                 <p className="text-xs text-neutral mt-1">
                                     Enter webhook URL for POST notifications
                                 </p>
@@ -698,5 +732,6 @@ export function AddAlarmForm({
                 </Button>
             </div>
         </form>
+        </>
     );
 }
