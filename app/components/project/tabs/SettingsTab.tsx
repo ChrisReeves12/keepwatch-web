@@ -20,16 +20,6 @@ export function SettingsTab({
                     <CardDescription>Manage project configuration and preferences</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div>
-                        <h3 className="text-sm font-medium text-primary-dark mb-2">General Settings</h3>
-                        <div className="space-y-4">
-                            <Button variant="outline">
-                                <Settings className="h-4 w-4 mr-2" />
-                                Edit Project Details
-                            </Button>
-                        </div>
-                    </div>
-
                     {canDelete && (
                         <div className="border-t border-gray-200 pt-6">
                             <h3 className="text-sm font-medium text-red-600 mb-2">Danger Zone</h3>

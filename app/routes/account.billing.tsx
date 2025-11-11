@@ -11,6 +11,7 @@ import {
 import { useLoaderData } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { DashboardHeader } from "~/components/DashboardHeader";
+import { Breadcrumb } from "~/components/ui/breadcrumb";
 import { CreditCard, TrendingUp, Calendar, AlertCircle, CheckCircle, FolderOpen } from "lucide-react";
 import { useState } from "react";
 import { redirect } from "react-router";
@@ -53,6 +54,14 @@ export default function BillingAndUsage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <Breadcrumb
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Billing & Usage" }
+          ]}
+        />
+
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary-dark">Billing & Usage</h1>

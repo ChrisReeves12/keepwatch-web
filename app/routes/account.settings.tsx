@@ -17,6 +17,7 @@ import { Label } from "~/components/ui/label";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from "~/components/ui/dialog";
 import { DashboardHeader } from "~/components/DashboardHeader";
+import { Breadcrumb } from "~/components/ui/breadcrumb";
 import { AlertTriangle, CheckCircle, User as UserIcon, Lock, Trash2, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
@@ -185,6 +186,14 @@ export default function AccountSettings() {
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Breadcrumb */}
+          <Breadcrumb
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Account Settings" }
+            ]}
+          />
+
           {/* Page Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-primary-dark">Account Settings</h1>
