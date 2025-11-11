@@ -15,12 +15,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Checkbox } from "~/components/ui/checkbox";
+import { Select } from "~/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from "~/components/ui/dialog";
 import { DashboardHeader } from "~/components/DashboardHeader";
 import { Breadcrumb } from "~/components/ui/breadcrumb";
 import { AlertTriangle, CheckCircle, User as UserIcon, Lock, Trash2, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
+import { TIMEZONES } from "~/lib/timezones";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -56,7 +58,8 @@ export async function action({ request }: Route.ActionArgs) {
       case "updateName": {
         const name = formData.get("name") as string;
         const company = formData.get("company") as string;
-        const updatedUser = await updateUser(token, { name, company });
+        const timezone = formData.get("timezone") as string;
+        const updatedUser = await updateUser(token, { name, company, timezone });
         return { success: true, message: "Profile updated successfully!", type: "updateName", user: updatedUser };
       }
 
@@ -261,6 +264,22 @@ export default function AccountSettings() {
                       defaultValue={user.company || ""}
                       placeholder="Enter your company name"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Select
+                      id="timezone"
+                      name="timezone"
+                      defaultValue={user.timezone || "UTC"}
+                    >
+                      {TIMEZONES.map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-xs text-neutral">Your timezone for displaying dates and times</p>
                   </div>
 
                   <Button type="submit" className="bg-brand hover:bg-brand/90 text-white">

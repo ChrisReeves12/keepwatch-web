@@ -4,7 +4,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Form, redirect, useActionData, Link, useLoaderData } from "react-router";
 import { registerUser } from "~/lib/api";
 import { getAuthToken } from "~/lib/auth.server";
@@ -41,6 +41,7 @@ export async function action({ request }: Route.ActionArgs) {
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
   const company = formData.get("company") as string;
+  const timezone = formData.get("timezone") as string;
   const inviteId = formData.get("inviteId") as string | null;
   const inviteToken = formData.get("inviteToken") as string | null;
 
@@ -59,7 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   try {
-    await registerUser({ name, email, password, company, inviteId, inviteToken });
+    await registerUser({ name, email, password, company, timezone, inviteId, inviteToken });
 
     // If invite params exist, redirect to login with those params
     if (inviteId && inviteToken) {
@@ -80,6 +81,11 @@ export default function Signup() {
   const loaderData = useLoaderData<typeof loader>();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [timezone, setTimezone] = useState("");
+
+  useEffect(() => {
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-primary-dark via-[#002865] to-brand p-4">
@@ -110,6 +116,7 @@ export default function Signup() {
             {loaderData?.inviteToken && (
               <input type="hidden" name="inviteToken" value={loaderData.inviteToken} />
             )}
+            <input type="hidden" name="timezone" value={timezone} />
             <CardContent className="space-y-4">
               {/* Google Sign Up Button */}
               <Button

@@ -22,6 +22,7 @@ export interface User {
     updatedAt: string;
     emailVerifiedAt?: string | null;
     is2FARequired?: boolean;
+    timezone?: string;
     _id: string;
 }
 
@@ -207,6 +208,7 @@ export interface RegisterUserRequest {
     email: string;
     password: string;
     company: string;
+    timezone: string;
     inviteId?: string | null;
     inviteToken?: string | null;
 }
@@ -797,6 +799,7 @@ export interface UpdateUserRequest {
     name?: string;
     company?: string;
     is2FARequired?: boolean;
+    timezone?: string;
 }
 
 export interface UpdateUserResponse {
