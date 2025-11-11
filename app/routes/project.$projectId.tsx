@@ -272,15 +272,17 @@ export default function ProjectDetail() {
                         >
                             Logs
                         </Link>
-                        <Link
-                            to="?tab=settings"
-                            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "settings"
-                                ? "border-brand text-brand"
-                                : "border-transparent text-neutral hover:text-primary-dark"
-                                }`}
-                        >
-                            Settings
-                        </Link>
+                        {isAdmin && (
+                            <Link
+                                to="?tab=settings"
+                                className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "settings"
+                                    ? "border-brand text-brand"
+                                    : "border-transparent text-neutral hover:text-primary-dark"
+                                    }`}
+                            >
+                                Settings
+                            </Link>
+                        )}
                     </nav>
                 </div>
 
@@ -321,7 +323,7 @@ export default function ProjectDetail() {
                         userEmail={userEmail}
                     />
                 )}
-                {activeTab === "settings" && (
+                {activeTab === "settings" && isAdmin && (
                     <SettingsTab
                         project={project}
                         onDeleteProject={() => setShowDeleteProjectDialog(true)}

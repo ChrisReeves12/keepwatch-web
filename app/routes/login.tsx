@@ -32,6 +32,11 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = (formData.get("intent") as string) ?? "login";
   const email = formData.get("email") as string;
 
+  // Get invite parameters from URL
+  const url = new URL(request.url);
+  const inviteId = url.searchParams.get("inviteId");
+  const inviteToken = url.searchParams.get("inviteToken");
+
   if (!email) {
     return {
       error: "Email is required.",
@@ -57,7 +62,17 @@ export async function action({ request }: Route.ActionArgs) {
       }
 
       const cookies = await setAuthCookies(response.token, response.user.userId);
-      return redirect("/", {
+
+      // Check for invite params from response (after registration) or URL params
+      const finalInviteId = response.inviteId || inviteId;
+      const finalInviteToken = response.inviteToken || inviteToken;
+
+      // Redirect to invite page if invite params exist
+      const redirectUrl = finalInviteId && finalInviteToken
+        ? `/projects/invite/${finalInviteId}?token=${finalInviteToken}`
+        : "/";
+
+      return redirect(redirectUrl, {
         headers: [
           ["Set-Cookie", cookies[0]],
           ["Set-Cookie", cookies[1]],
@@ -97,7 +112,17 @@ export async function action({ request }: Route.ActionArgs) {
 
     // Set the auth cookies and redirect (use userId, not _id)
     const cookies = await setAuthCookies(response.token, response.user.userId);
-    return redirect("/", {
+
+    // Check for invite params from response (after registration) or URL params
+    const finalInviteId = response.inviteId || inviteId;
+    const finalInviteToken = response.inviteToken || inviteToken;
+
+    // Redirect to invite page if invite params exist, otherwise go to home
+    const redirectUrl = finalInviteId && finalInviteToken
+      ? `/projects/invite/${finalInviteId}?token=${finalInviteToken}`
+      : "/";
+
+    return redirect(redirectUrl, {
       headers: [
         ["Set-Cookie", cookies[0]],
         ["Set-Cookie", cookies[1]],

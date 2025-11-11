@@ -5,6 +5,8 @@ export interface AuthResponse {
     token?: string;
     is2FARequired?: boolean;
     user: User;
+    inviteId?: string;
+    inviteToken?: string;
 }
 
 export interface AuthError {
@@ -139,6 +141,8 @@ export interface RegisterUserRequest {
     email: string;
     password: string;
     company: string;
+    inviteId?: string | null;
+    inviteToken?: string | null;
 }
 
 export interface RegisterUserResponse {
@@ -842,6 +846,102 @@ export async function resendVerificationEmail(email: string): Promise<ResendVeri
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to resend verification email');
+    }
+
+    return response.json();
+}
+
+export interface Invite {
+    inviteId: string;
+    projectId: string;
+    recipientEmail: string;
+    recipientRole: string;
+    recipientUserId: string;
+    expiresAt: string;
+}
+
+export interface VerifyInviteResponse {
+    invite: Invite;
+}
+
+export interface InviteProjectDetails {
+    name: string;
+    description: string;
+    ownerName: string;
+    ownerEmail: string;
+}
+
+export interface AcceptInviteRequest {
+    isAccepted: boolean;
+}
+
+export interface AcceptInviteResponse {
+    message: string;
+    projectId: string;
+}
+
+/**
+ * Verify an invite by inviteId and token
+ */
+export async function verifyInvite(inviteId: string, token: string): Promise<VerifyInviteResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/projects/invite/${inviteId}?token=${token}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        if (response.status === 403) {
+            throw new Error('This invitation is invalid or has expired');
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to verify invite');
+    }
+
+    return response.json();
+}
+
+/**
+ * Get project details for an invite
+ */
+export async function getInviteProjectDetails(inviteId: string, token: string): Promise<InviteProjectDetails> {
+    const response = await fetch(`${API_BASE_URL}/v1/projects/invite/${inviteId}/project-details?token=${token}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch project details');
+    }
+
+    return response.json();
+}
+
+/**
+ * Accept or reject an invite
+ */
+export async function respondToInvite(
+    inviteId: string,
+    inviteToken: string,
+    authToken: string,
+    isAccepted: boolean
+): Promise<AcceptInviteResponse> {
+    const response = await authenticatedFetch(`/v1/projects/invite/${inviteId}?token=${inviteToken}`, {
+        method: 'PUT',
+        token: authToken,
+        body: JSON.stringify({ isAccepted }),
+    });
+
+    if (!response.ok) {
+        if (response.status === 403) {
+            throw new Error('This invitation is invalid or has expired');
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to respond to invite');
     }
 
     return response.json();

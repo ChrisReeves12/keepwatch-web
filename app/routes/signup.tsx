@@ -5,7 +5,7 @@ import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 import { useState } from "react";
-import { Form, redirect, useActionData, Link } from "react-router";
+import { Form, redirect, useActionData, Link, useLoaderData } from "react-router";
 import { registerUser } from "~/lib/api";
 import { getAuthToken } from "~/lib/auth.server";
 
@@ -22,7 +22,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (token) {
     throw redirect("/");
   }
-  return null;
+
+  // Extract invite parameters from URL if present
+  const url = new URL(request.url);
+  const inviteId = url.searchParams.get("inviteId");
+  const inviteToken = url.searchParams.get("inviteToken");
+
+  return {
+    inviteId,
+    inviteToken,
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -32,6 +41,8 @@ export async function action({ request }: Route.ActionArgs) {
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
   const company = formData.get("company") as string;
+  const inviteId = formData.get("inviteId") as string | null;
+  const inviteToken = formData.get("inviteToken") as string | null;
 
   // Validate passwords match
   if (password !== confirmPassword) {
@@ -48,9 +59,14 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   try {
-    await registerUser({ name, email, password, company });
+    await registerUser({ name, email, password, company, inviteId, inviteToken });
 
-    // Redirect to login page with success message
+    // If invite params exist, redirect to login with those params
+    if (inviteId && inviteToken) {
+      return redirect(`/login?registered=true&inviteId=${inviteId}&inviteToken=${inviteToken}`);
+    }
+
+    // Otherwise, redirect to login page with success message
     return redirect("/login?registered=true");
   } catch (error) {
     return {
@@ -61,6 +77,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Signup() {
   const actionData = useActionData<typeof action>();
+  const loaderData = useLoaderData<typeof loader>();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -86,6 +103,13 @@ export default function Signup() {
             </CardDescription>
           </CardHeader>
           <Form method="post">
+            {/* Hidden fields for invite parameters */}
+            {loaderData?.inviteId && (
+              <input type="hidden" name="inviteId" value={loaderData.inviteId} />
+            )}
+            {loaderData?.inviteToken && (
+              <input type="hidden" name="inviteToken" value={loaderData.inviteToken} />
+            )}
             <CardContent className="space-y-4">
               {/* Google Sign Up Button */}
               <Button
