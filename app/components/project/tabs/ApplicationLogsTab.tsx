@@ -13,7 +13,7 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { AddAlarmForm } from "~/components/project/dialogs/AddAlarmForm";
 import { LogCard } from "../cards/LogCard";
 import { formatNumber, getPageNumbers, getLogLevelStyle } from "../utils";
-import { searchLogs, fetchEnvironments, fetchCategories, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption, type User } from "~/lib/api";
+import { searchLogs, fetchEnvironments, fetchCategories, fetchHostnames, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption, type HostnameOption, type User } from "~/lib/api";
 import type { loader } from "~/routes/project.$projectId";
 
 export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, currentUser }: { project: Project; canCreateAlarm: boolean; canDeleteLogs: boolean; currentUser: User }) {
@@ -41,6 +41,8 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, cur
     const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(false);
     const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+    const [availableHostnames, setAvailableHostnames] = useState<HostnameOption[]>([]);
+    const [isLoadingHostnames, setIsLoadingHostnames] = useState(false);
 
     // Bulk delete state
     const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
@@ -83,6 +85,18 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, cur
             console.error('Failed to fetch categories:', err);
         } finally {
             setIsLoadingCategories(false);
+        }
+    };
+
+    const loadHostnames = async () => {
+        try {
+            setIsLoadingHostnames(true);
+            const response = await fetchHostnames(token, project.projectId, 'application');
+            setAvailableHostnames(response.hostnames);
+        } catch (err) {
+            console.error('Failed to fetch hostnames:', err);
+        } finally {
+            setIsLoadingHostnames(false);
         }
     };
 
@@ -776,7 +790,11 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, cur
                             {/* Hostname Multi-Select */}
                             <div className="flex-1 min-w-[200px] md:max-w-[15vw]">
                                 <Label className="mb-2 block">Hostname</Label>
-                                <Popover>
+                                <Popover onOpenChange={(open) => {
+                                    if (open) {
+                                        loadHostnames();
+                                    }
+                                }}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className="w-full justify-between">
                                             <span className="truncate">
@@ -787,37 +805,39 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, cur
                                             <Filter className="ml-2 h-4 w-4 shrink-0" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[200px] p-3">
+                                    <PopoverContent className="w-[250px] p-3">
                                         <div className="space-y-2">
-                                            <Input
-                                                placeholder="Add hostname..."
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && e.currentTarget.value) {
-                                                        toggleHostnameFilter(e.currentTarget.value);
-                                                        e.currentTarget.value = '';
-                                                    }
-                                                }}
-                                                className="mb-2"
-                                            />
-                                            {hostnameFilters.length > 0 && (
+                                            {isLoadingHostnames ? (
+                                                <div className="flex items-center justify-center py-4">
+                                                    <Activity className="h-4 w-4 text-neutral animate-spin" />
+                                                </div>
+                                            ) : availableHostnames.length > 0 ? (
                                                 <>
-                                                    <div className="text-xs font-medium text-neutral mb-1">Selected:</div>
-                                                    {hostnameFilters.map((hostname) => (
-                                                        <div key={hostname} className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                id={`hostname-${hostname}`}
-                                                                checked={true}
-                                                                onCheckedChange={() => toggleHostnameFilter(hostname)}
-                                                            />
-                                                            <label
-                                                                htmlFor={`hostname-${hostname}`}
-                                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                                            >
-                                                                {hostname}
-                                                            </label>
+                                                    {availableHostnames.map((host) => (
+                                                        <div key={host.value} className="flex items-center justify-between space-x-2">
+                                                            <div className="flex items-center space-x-2 flex-1">
+                                                                <Checkbox
+                                                                    id={`hostname-${host.value}`}
+                                                                    checked={hostnameFilters.includes(host.value)}
+                                                                    onCheckedChange={() => toggleHostnameFilter(host.value)}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`hostname-${host.value}`}
+                                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                                                >
+                                                                    {host.value}
+                                                                </label>
+                                                            </div>
+                                                            <span className="text-xs text-neutral">
+                                                                {host.count.toLocaleString()}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                 </>
+                                            ) : (
+                                                <div className="text-xs text-neutral text-center py-2">
+                                                    No hostnames found
+                                                </div>
                                             )}
                                         </div>
                                     </PopoverContent>

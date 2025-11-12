@@ -791,6 +791,32 @@ export async function fetchCategories(token: string, projectId: string, logType:
     return response.json();
 }
 
+export interface HostnameOption {
+    value: string;
+    count: number;
+}
+
+export interface FetchHostnamesResponse {
+    hostnames: HostnameOption[];
+}
+
+/**
+ * Fetch available hostnames for a project and log type
+ */
+export async function fetchHostnames(token: string, projectId: string, logType: 'application' | 'system'): Promise<FetchHostnamesResponse> {
+    const response = await authenticatedFetch(`/v1/logs/${projectId}/${logType}/hostnames`, {
+        method: 'GET',
+        token,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch hostnames' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch hostnames`);
+    }
+
+    return response.json();
+}
+
 /**
  * Account Management API Functions
  */
