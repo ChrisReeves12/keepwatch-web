@@ -24,6 +24,8 @@ export interface User {
     is2FARequired?: boolean;
     timezone?: string;
     _id: string;
+    googleId?: string;
+    profilePicture?: string;
 }
 
 export interface Project {
@@ -1171,4 +1173,40 @@ export async function fetchUserSubscription(token: string): Promise<UserSubscrip
     }
 
     return response.json();
+}
+
+/**
+ * Google OAuth Authentication
+ */
+export interface GoogleAuthRequest {
+    googleIdToken: string;
+    timezone?: string;
+}
+
+export interface GoogleAuthResponse {
+    token: string;
+    userId: string;
+    user: User;
+    isNewUser: boolean;
+}
+
+/**
+ * Authenticate or sign up with Google OAuth
+ */
+export async function authenticateWithGoogle(googleIdToken: string, timezone?: string): Promise<GoogleAuthResponse> {
+    const response = await fetch(`${API_BASE_URL}/v1/auth/google`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ googleIdToken, timezone }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Google authentication failed');
+    }
+
+    return data as GoogleAuthResponse;
 }

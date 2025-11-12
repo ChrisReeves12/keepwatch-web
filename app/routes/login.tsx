@@ -4,9 +4,9 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
-import { useMemo, useState } from "react";
-import { Form, redirect, useActionData, Link, useSearchParams } from "react-router";
-import { authenticate, verifyTwoFactor } from "~/lib/api";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { Form, redirect, useActionData, Link, useSearchParams, useNavigate } from "react-router";
+import { authenticate, verifyTwoFactor, authenticateWithGoogle } from "~/lib/api";
 import { setAuthCookies, getAuthToken } from "~/lib/auth.server";
 import { CheckCircle } from "lucide-react";
 import moment from "moment";
@@ -30,12 +30,40 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const intent = (formData.get("intent") as string) ?? "login";
-  const email = formData.get("email") as string;
 
   // Get invite parameters from URL
   const url = new URL(request.url);
   const inviteId = url.searchParams.get("inviteId");
   const inviteToken = url.searchParams.get("inviteToken");
+
+  // Handle Google OAuth authentication
+  if (intent === "google-auth") {
+    const googleToken = formData.get("googleToken") as string;
+    const googleUserId = formData.get("googleUserId") as string;
+
+    if (!googleToken || !googleUserId) {
+      return {
+        error: "Google authentication failed. Missing credentials.",
+      };
+    }
+
+    // Set auth cookies
+    const cookies = await setAuthCookies(googleToken, googleUserId);
+
+    // Redirect to invite page if invite params exist, otherwise go to home
+    const redirectUrl = inviteId && inviteToken
+      ? `/projects/invite/${inviteId}?token=${inviteToken}`
+      : "/";
+
+    return redirect(redirectUrl, {
+      headers: [
+        ["Set-Cookie", cookies[0]],
+        ["Set-Cookie", cookies[1]],
+      ],
+    });
+  }
+
+  const email = formData.get("email") as string;
 
   if (!email) {
     return {
@@ -135,15 +163,100 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 export default function Login() {
   const actionData = useActionData<typeof action>();
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
   const registered = searchParams.get("registered") === "true";
   const resetSuccess = searchParams.get("reset") === "success";
   const twoFactorRequired = actionData?.twoFactorRequired;
   const emailForVerification = actionData?.email;
   const codeExpiresAt = useMemo(() => moment().add(15, "minutes").format("h:mm A"), []);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Load Google Identity Services script
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+
+    script.onload = () => {
+      if (window.google && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+        });
+
+        window.google.accounts.id.renderButton(
+          googleButtonRef.current,
+          {
+            theme: 'outline',
+            size: 'large',
+            width: googleButtonRef.current.offsetWidth,
+            text: 'signin_with',
+          }
+        );
+      }
+    };
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  const handleGoogleResponse = async (response: any) => {
+    setGoogleLoading(true);
+    setGoogleError(null);
+
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      // Call our backend API
+      const authResponse = await authenticateWithGoogle(response.credential, timezone);
+
+      // Set auth cookies using a form submission to trigger the action
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/login';
+
+      const tokenInput = document.createElement('input');
+      tokenInput.type = 'hidden';
+      tokenInput.name = 'googleToken';
+      tokenInput.value = authResponse.token;
+      form.appendChild(tokenInput);
+
+      const userIdInput = document.createElement('input');
+      userIdInput.type = 'hidden';
+      userIdInput.name = 'googleUserId';
+      userIdInput.value = authResponse.userId;
+      form.appendChild(userIdInput);
+
+      const intentInput = document.createElement('input');
+      intentInput.type = 'hidden';
+      intentInput.name = 'intent';
+      intentInput.value = 'google-auth';
+      form.appendChild(intentInput);
+
+      document.body.appendChild(form);
+      form.submit();
+
+    } catch (error) {
+      console.error('Google login error:', error);
+      setGoogleError(error instanceof Error ? error.message : 'Failed to sign in with Google');
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-primary-dark via-[#002865] to-brand p-4">
@@ -193,31 +306,19 @@ export default function Login() {
                 )}
 
                 {/* Google Sign In Button */}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  type="button"
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Sign in with Google
-                </Button>
+                {googleError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                    {googleError}
+                  </div>
+                )}
+                <div ref={googleButtonRef} className="w-full" style={{ minHeight: '40px' }}>
+                  {/* Google button will be rendered here */}
+                </div>
+                {googleLoading && (
+                  <div className="text-center text-sm text-neutral">
+                    Signing in with Google...
+                  </div>
+                )}
 
                 {/* Divider */}
                 <div className="relative">
