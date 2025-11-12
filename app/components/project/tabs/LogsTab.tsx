@@ -3,7 +3,7 @@ import { FileText } from "lucide-react";
 import { Card, CardContent } from "~/components/ui/card";
 import { ApplicationLogsTab } from "./ApplicationLogsTab";
 import { AlarmsTab } from "./AlarmsTab";
-import type { Project } from "~/lib/api";
+import type { Project, User } from "~/lib/api";
 
 export function LogsTab({
     project,
@@ -11,14 +11,14 @@ export function LogsTab({
     canDeleteAlarm,
     canUpdateAlarm,
     canDeleteLogs,
-    userEmail,
+    currentUser,
 }: {
     project: Project;
     canCreateAlarm: boolean;
     canDeleteAlarm: boolean;
     canUpdateAlarm: boolean;
     canDeleteLogs: boolean;
-    userEmail?: string;
+    currentUser: User;
 }) {
     const [searchParams] = useSearchParams();
 
@@ -82,7 +82,8 @@ export function LogsTab({
             )}
 
             {logsSubTab === "application" && (
-                <ApplicationLogsTab project={project} canCreateAlarm={canCreateAlarm} canDeleteLogs={canDeleteLogs} userEmail={userEmail} />
+                <ApplicationLogsTab project={project} canCreateAlarm={canCreateAlarm}
+                                    canDeleteLogs={canDeleteLogs} currentUser={currentUser} />
             )}
 
             {logsSubTab === "system" && (
@@ -97,7 +98,7 @@ export function LogsTab({
             )}
 
             {logsSubTab === "alarms" && (
-                <AlarmsTab project={project} canCreateAlarm={canCreateAlarm} canDeleteAlarm={canDeleteAlarm} canUpdateAlarm={canUpdateAlarm} userEmail={userEmail} />
+                <AlarmsTab project={project} canCreateAlarm={canCreateAlarm} canDeleteAlarm={canDeleteAlarm} canUpdateAlarm={canUpdateAlarm} userEmail={currentUser.email} />
             )}
         </div>
     );

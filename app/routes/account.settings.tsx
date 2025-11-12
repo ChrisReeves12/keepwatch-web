@@ -279,7 +279,7 @@ export default function AccountSettings() {
                         </option>
                       ))}
                     </Select>
-                    <p className="text-xs text-neutral">Your timezone for displaying dates and times</p>
+                    <p className="text-xs text-neutral">Your timezone for displaying logging/telemetry dates and times</p>
                   </div>
 
                   <Button type="submit" className="bg-brand hover:bg-brand/90 text-white">

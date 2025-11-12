@@ -10,7 +10,7 @@ import { ArrowLeft, AlertCircle, Info, AlertTriangle, Bug, Zap, Globe, Server, C
 import { redirect } from "react-router";
 import { getUserRole, hasPermission } from "~/components/project/utils";
 import { getLogLevelStyle } from "~/components/project/utils";
-import moment from "moment";
+import moment from "moment-timezone";
 import { useState } from "react";
 
 export function meta({ data }: Route.MetaArgs) {
@@ -47,7 +47,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
             throw new Response("Unauthorized", { status: 403 });
         }
 
-        return { project, log, token, userId, userRole };
+        return { project, log, token, userId, userRole, currentUser };
     } catch (error) {
         console.error("Failed to fetch log:", error);
         if (error instanceof Response && error.status === 403) {
@@ -58,10 +58,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function LogDetail() {
-    const { project, log, token, userRole } = useLoaderData<typeof loader>();
+    const { project, log, token, userRole, currentUser } = useLoaderData<typeof loader>();
     const navigate = useNavigate();
     const levelStyle = getLogLevelStyle(log.level);
     const LevelIcon = levelStyle.icon;
+    const timezone = currentUser.timezone;
     
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -317,10 +318,16 @@ export default function LogDetail() {
                                 <div>
                                     <p className="text-sm font-medium text-neutral mb-1">Date & Time</p>
                                     <p className="text-sm text-primary-dark">
-                                        {moment(log.timestampMS).format("MMMM D, YYYY")}
+                                        {timezone 
+                                            ? moment(log.timestampMS).tz(timezone).format("MMMM D, YYYY")
+                                            : moment(log.timestampMS).utc().format("MMMM D, YYYY")
+                                        }
                                     </p>
                                     <p className="text-lg font-semibold text-primary-dark">
-                                        {moment(log.timestampMS).format("h:mm:ss A")}
+                                        {timezone 
+                                            ? moment(log.timestampMS).tz(timezone).format("h:mm:ss A z")
+                                            : moment(log.timestampMS).utc().format("h:mm:ss A [UTC]")
+                                        }
                                     </p>
                                 </div>
                                 <div>
@@ -442,7 +449,10 @@ export default function LogDetail() {
                                     <span className="font-medium">Message:</span> {log.message}
                                 </p>
                                 <p className="text-gray-600">
-                                    <span className="font-medium">Time:</span> {moment(log.timestampMS).format("MMM D, YYYY h:mm:ss A")}
+                                    <span className="font-medium">Time:</span> {timezone 
+                                        ? moment(log.timestampMS).tz(timezone).format("MMM D, YYYY h:mm:ss A z")
+                                        : moment(log.timestampMS).utc().format("MMM D, YYYY h:mm:ss A [UTC]")
+                                    }
                                 </p>
                             </div>
                         </div>

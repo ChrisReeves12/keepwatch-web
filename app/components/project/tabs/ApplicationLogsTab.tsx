@@ -13,10 +13,10 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { AddAlarmForm } from "~/components/project/dialogs/AddAlarmForm";
 import { LogCard } from "../cards/LogCard";
 import { formatNumber, getPageNumbers, getLogLevelStyle } from "../utils";
-import { searchLogs, fetchEnvironments, fetchCategories, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption } from "~/lib/api";
+import { searchLogs, fetchEnvironments, fetchCategories, deleteLogs, type Project, type Log, type SearchLogsRequest, type Alarm, type EnvironmentOption, type CategoryOption, type User } from "~/lib/api";
 import type { loader } from "~/routes/project.$projectId";
 
-export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, userEmail }: { project: Project; canCreateAlarm: boolean; canDeleteLogs: boolean; userEmail?: string }) {
+export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, currentUser }: { project: Project; canCreateAlarm: boolean; canDeleteLogs: boolean; currentUser: User }) {
     const { token } = useLoaderData<typeof loader>();
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -1049,6 +1049,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                         showCheckbox={canDeleteLogs}
                                         isSelected={log._id ? selectedLogIds.has(log._id) : false}
                                         onSelectionChange={handleLogSelection}
+                                        timezone={currentUser.timezone}
                                     />
                                 ))}
                             </div>
@@ -1118,7 +1119,7 @@ export function ApplicationLogsTab({ project, canCreateAlarm, canDeleteLogs, use
                                 initialLevel={selectedLogForAlarm.level}
                                 initialEnvironment={selectedLogForAlarm.environment}
                                 initialCategories={selectedLogForAlarm.category ? [selectedLogForAlarm.category] : []}
-                                userEmail={userEmail}
+                                userEmail={currentUser.email}
                                 onSubmit={(alarmData) => {
                                     setCreatedAlarmData(alarmData);
                                     setShowAddAlarmModal(false);

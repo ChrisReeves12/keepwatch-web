@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Bell, ExternalLink } from "lucide-react";
-import moment from "moment";
+import moment from "moment-timezone";
 import { Link } from "react-router";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -15,7 +15,8 @@ export function LogCard({
     showCheckbox = false,
     isSelected = false,
     onSelectionChange,
-    logIndex = 0
+    logIndex = 0,
+    timezone
 }: { 
     log: Log; 
     onAddAlarm: (log: Log) => void; 
@@ -25,6 +26,7 @@ export function LogCard({
     isSelected?: boolean;
     onSelectionChange?: (logId: string, checked: boolean, index: number, shiftKey: boolean) => void;
     logIndex?: number;
+    timezone?: string;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
@@ -101,7 +103,10 @@ export function LogCard({
                             </span>
                         )}
                         <span className="text-xs text-neutral">
-                            {moment(log.timestampMS).format("MMM D, YYYY h:mm:ss A")}
+                            {timezone 
+                                ? moment(log.timestampMS).tz(timezone).format("MMM D, YYYY h:mm:ss A z")
+                                : moment(log.timestampMS).utc().format("MMM D, YYYY h:mm:ss A [UTC]")
+                            }
                         </span>
                         <span className="text-xs text-neutral">
                             ({moment(log.timestampMS).fromNow()})

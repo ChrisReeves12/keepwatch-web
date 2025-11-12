@@ -48,7 +48,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         const userId = currentUser._id;
         const userRole = getUserRole(project, userId);
 
-        return { project, token, userId, userRole };
+        return { project, token, userId, userRole, currentUser };
     } catch (error) {
         console.error("Failed to fetch project:", error);
         throw new Response("Failed to load project", { status: 500 });
@@ -175,15 +175,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function ProjectDetail() {
-    const { project, userId, userRole } = useLoaderData<typeof loader>();
+    const { project, userId, userRole, currentUser } = useLoaderData<typeof loader>();
     const actionData = useActionData<typeof action>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { toasts, showToast, closeToast } = useToast();
-
-    // Get current user's email from project users
-    const currentUser = project.users.find(user => user.id === userId);
-    const userEmail = currentUser?.email;
 
     // Get active tab from URL, default to "overview"
     const activeTab = (searchParams.get("tab") as "overview" | "apikeys" | "team" | "logs" | "settings") || "overview";
@@ -369,7 +365,7 @@ export default function ProjectDetail() {
                         canDeleteAlarm={canDeleteAlarm}
                         canUpdateAlarm={canUpdateAlarm}
                         canDeleteLogs={canDeleteLogs}
-                        userEmail={userEmail}
+                        currentUser={currentUser}
                     />
                 )}
                 {activeTab === "settings" && canUpdateProject && (
