@@ -7,6 +7,10 @@ steps:
       - 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$SHORT_SHA'
       - '-t'
       - 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:latest'
+      - '--build-arg'
+      - 'VITE_API_BASE_URL=${_VITE_API_BASE_URL}'
+      - '--build-arg'
+      - 'VITE_GOOGLE_CLIENT_ID=${_VITE_GOOGLE_CLIENT_ID}'
       - '.'
 
   # Step 2: Push the image to Container Registry
